@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather AI | Kayıt Ol</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-[#f0f4f8] min-h-screen font-sans flex flex-col justify-center items-center p-6">
+
+    <div class="max-w-md w-full text-center space-y-6">
+        
+        <div class="flex flex-col items-center">
+            <div class="text-blue-500 text-6xl drop-shadow-md mb-3"><i class="fa-solid fa-cloud"></i></div>
+            <h1 class="text-3xl font-bold text-slate-800 tracking-tight">Hesap Oluştur</h1>
+            <p class="text-slate-500 text-sm mt-1">Hava durumuna göre akıllı sağlık asistanınız</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-[2rem] shadow-xl shadow-slate-200/80 space-y-4">
+            <div id="msgBox" class="text-xs hidden font-medium p-2 rounded-xl border"></div>
+
+            <form id="registerForm" class="space-y-3.5" onsubmit="handleRegister(event)">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-4 flex items-center text-slate-400"><i class="fa-solid fa-user"></i></span>
+                    <input type="text" id="username" required class="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:border-blue-400 text-slate-700" placeholder="Kullanıcı Adı">
+                </div>
+
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-4 flex items-center text-slate-400"><i class="fa-solid fa-envelope"></i></span>
+                    <input type="email" id="email" required class="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:border-blue-400 text-slate-700" placeholder="E-posta Adresi">
+                </div>
+
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-4 flex items-center text-slate-400"><i class="fa-solid fa-lock"></i></span>
+                    <input type="password" id="password" required class="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:border-blue-400 text-slate-700" placeholder="Şifre">
+                </div>
+
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-4 flex items-center text-slate-400"><i class="fa-solid fa-shield-halved"></i></span>
+                    <input type="password" id="confirm_password" required class="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:border-blue-400 text-slate-700" placeholder="Şifre Tekrar">
+                </div>
+
+                <button type="submit" id="regBtn" class="w-full py-3.5 bg-blue-500 text-white rounded-2xl text-sm font-semibold shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-all flex justify-center items-center gap-2">
+                    <span>Kayıt Ol</span><i class="fa-solid fa-user-plus text-xs"></i>
+                </button>
+            </form>
+        </div>
+
+        <p class="text-xs text-slate-400">Zaten hesabın var mı? <a href="/login.html" class="text-blue-500 font-semibold hover:underline">Giriş Yap</a></p>
+    </div>
+
+    <script>
+        async function handleRegister(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirm_password = document.getElementById('confirm_password').value;
+            const msgBox = document.getElementById('msgBox');
+            const regBtn = document.getElementById('regBtn');
+
+            regBtn.disabled = true;
+            msgBox.classList.add('hidden');
+
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/register/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password, confirm_password })
+                });
+
+                const data = await response.json();
+
+                if (response.status === 201) {
+                    msgBox.className = "text-green-600 text-xs font-medium bg-green-50 p-2 rounded-xl border border-green-200 text-center block";
+                    msgBox.innerText = "Hesabınız başarıyla oluşturuldu! Giriş sayfasına yönlendiriliyorsunuz...";
+                    setTimeout(() => { window.location.href = '/login.html'; }, 2000);
+                } else {
+                    msgBox.className = "text-red-600 text-xs font-medium bg-red-50 p-2 rounded-xl border border-red-200 text-center block";
+                    msgBox.innerText = data.detail || "Kayıt başarısız.";
+                    regBtn.disabled = false;
+                }
+            } catch (error) {
+                msgBox.className = "text-red-600 text-xs font-medium bg-red-50 p-2 rounded-xl border border-red-200 text-center block";
+                msgBox.innerText = "Sunucu bağlantı hatası.";
+                regBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

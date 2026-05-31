@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather AI | Onboarding</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/theme.css?v=3">
+    <style>
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        .star { position: absolute; background: white; border-radius: 50%; animation: twinkle 2.3s infinite; z-index: 0; }
+    </style>
+</head>
+<body id="mainBody" class="min-h-screen font-sans transition-all duration-1000 overflow-x-hidden flex items-center justify-center p-4 relative">
+
+    <div id="starField" class="absolute inset-0 pointer-events-none hidden"></div>
+
+    <div class="max-w-md w-full p-5 relative z-10 flex flex-col justify-between space-y-6">
+        
+        <div class="text-center space-y-2">
+            <div class="text-4xl animate-pulse"><i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i></div>
+            <h1 class="text-2xl font-bold tracking-tight">Sizi Tanıyalım</h1>
+            <p class="text-xs opacity-80">Daha iyi kişisel AI tavsiyeleri için profili şekillendirelim.</p>
+        </div>
+
+        <div class="glass-card p-6 shadow-xl space-y-4">
+            <div id="msgBox" class="text-xs hidden font-medium p-2.5 rounded-xl border text-center transition-all"></div>
+
+            <form id="onboardingForm" class="space-y-4" onsubmit="saveOnboarding(event)">
+                
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block"><i class="fa-solid fa-temperature-half mr-1"></i> Sıcaklık Tercihleri (°C)</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="minTemp" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm focus:outline-none focus:border-white/50 placeholder-white/50 text-white" placeholder="Min sıcaklık (örn 15)">
+                        <input type="number" id="maxTemp" required class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm focus:outline-none focus:border-white/50 placeholder-white/50 text-white" placeholder="Max sıcaklık (örn 28)">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block"><i class="fa-solid fa-heart mr-1"></i> Sevdiğin Hava Durumları</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-60 text-sm"><i class="fa-solid fa-sun"></i></span>
+                        <input type="text" id="favoriteWeather" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm focus:outline-none focus:border-white/50 placeholder-white/50 text-white" placeholder="Güneşli, yağmurlu (virgülle)">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block"><i class="fa-solid fa-heart-crack mr-1"></i> Sevmediğin Hava Durumları</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-60 text-sm"><i class="fa-solid fa-wind"></i></span>
+                        <input type="text" id="dislikedWeather" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm focus:outline-none focus:border-white/50 placeholder-white/50 text-white" placeholder="Aşırı sıcak, rüzgarlı (virgülle)">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block"><i class="fa-solid fa-dumbbell mr-1"></i> Düzenli Aktivitelerin</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-60 text-sm"><i class="fa-solid fa-person-running"></i></span>
+                        <input type="text" id="activities" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm focus:outline-none focus:border-white/50 placeholder-white/50 text-white" placeholder="Boxing, yürüyüş, koşu (virgülle)">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block"><i class="fa-solid fa-notes-medical mr-1"></i> Sağlık Hassasiyetlerin</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-60 text-sm"><i class="fa-solid fa-heart-pulse"></i></span>
+                        <input type="text" id="diseases" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm focus:outline-none focus:border-white/50 placeholder-white/50 text-white" placeholder="Astım, migren (virgülle)">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5 border-t border-white/20 pt-3">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block"><i class="fa-solid fa-droplet mr-1"></i> Kan Grubu</label>
+                    <select id="bloodType" class="app-select focus:outline-none focus:ring-2 focus:ring-sky-400/40">
+                        <option value="">Belirtmek istemiyorum</option>
+                        <option value="A+">A Rh+</option><option value="A-">A Rh-</option>
+                        <option value="B+">B Rh+</option><option value="B-">B Rh-</option>
+                        <option value="AB+">AB Rh+</option><option value="AB-">AB Rh-</option>
+                        <option value="0+">0 Rh+</option><option value="0-">0 Rh-</option>
+                    </select>
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block mt-2"><i class="fa-solid fa-pills mr-1"></i> Kullandığın İlaçlar</label>
+                    <input type="text" id="medications" class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm text-white placeholder-white/50" placeholder="İlaç adları (virgülle)">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block mt-2"><i class="fa-solid fa-hand-dots mr-1"></i> Alerjiler</label>
+                    <input type="text" id="allergies" class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm text-white placeholder-white/50" placeholder="Polen, ilaç alerjisi (virgülle)">
+                    <label class="text-[11px] font-bold uppercase tracking-wider opacity-80 block mt-2">Ek sağlık notları</label>
+                    <textarea id="healthNotes" rows="2" class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-sm text-white placeholder-white/50" placeholder="İsteğe bağlı ek bilgiler…"></textarea>
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full py-3.5 mt-2 bg-white text-slate-800 rounded-2xl text-sm font-semibold shadow-xl hover:bg-slate-100 active:scale-[0.99] transition-all flex justify-center items-center gap-2 focus:outline-none">
+                    <span>Profilleri Kilitle</span>
+                    <i class="fa-solid fa-arrow-right text-xs"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        // 🎯 [KREDİ]: Kullanıcının halihazırda profili olup olmadığını tutan kontrol bayrağı
+        let userAlreadyHasProfile = false;
+
+        function parseList(value) {
+            return value.split(',').map((v) => v.trim()).filter(Boolean);
+        }
+
+        function parseNumberOrNull(value) {
+            if (value === '' || value === null || value === undefined) return null;
+            const num = Number(value);
+            return Number.isNaN(num) ? null : num;
+        }
+
+        function normalizeRange(minValue, maxValue) {
+            if (minValue === null || maxValue === null) return [minValue, maxValue];
+            if (minValue <= maxValue) return [minValue, maxValue];
+            return [maxValue, minValue];
+        }
+
+        function setMessage(text, isError = false) {
+            const box = document.getElementById('msgBox');
+            box.classList.remove('hidden');
+            if (isError) {
+                box.className = 'text-red-200 text-xs font-medium bg-red-500/20 p-2.5 rounded-xl border border-red-500/30 text-center block';
+            } else {
+                box.className = 'text-emerald-200 text-xs font-medium bg-emerald-500/20 p-2.5 rounded-xl border border-emerald-500/30 text-center block';
+            }
+            box.textContent = text;
+        }
+
+        // loadExistingProfile fonksiyonu içinden gelen data bilgisine göre metodu tayin ediyoruz
+        async function loadExistingProfile() {
+            const currentHour = new Date().getHours();
+            const isDay = currentHour >= 6 && currentHour < 19;
+            const body = document.getElementById('mainBody');
+
+            if (isDay) {
+                body.className = 'theme-day min-h-screen font-sans transition-all duration-1000 overflow-x-hidden flex items-center justify-center p-4 relative';
+                document.getElementById('starField').classList.add('hidden');
+            } else {
+                body.className = 'theme-night min-h-screen font-sans transition-all duration-1000 overflow-x-hidden flex items-center justify-center p-4 relative';
+                document.getElementById('starField').classList.remove('hidden');
+                generateStars();
+            }
+
+            if (!isLoggedIn()) {
+                redirectToLogin();
+                return;
+            }
+            
+            const response = await authFetch(`${API_BASE}/api/profiles/me/`, { method: 'GET' });
+            if (!response.ok) return;
+
+            const data = await response.json();
+            
+            // Profil var mı yok mu bayrağını güncelliyoruz 🎯
+            if (data.is_onboarded) {
+                userAlreadyHasProfile = true;
+                setMessage('Mevcut anket verileriniz yüklendi, güncelleyebilirsiniz.', false);
+            }
+
+            if (data.min_temp !== null && data.min_temp !== undefined) document.getElementById('minTemp').value = data.min_temp;
+            if (data.max_temp !== null && data.max_temp !== undefined) document.getElementById('maxTemp').value = data.max_temp;
+            
+            document.getElementById('favoriteWeather').value = (data.favorite_weather || []).join(', ');
+            document.getElementById('dislikedWeather').value = (data.disliked_weather || []).join(', ');
+            document.getElementById('activities').value = (data.activities || []).join(', ');
+            document.getElementById('diseases').value = (data.diseases || []).join(', ');
+            document.getElementById('bloodType').value = data.blood_type || '';
+            document.getElementById('medications').value = (data.medications || []).join(', ');
+            document.getElementById('allergies').value = (data.allergies || []).join(', ');
+            document.getElementById('healthNotes').value = data.health_notes || '';
+        }
+
+        async function saveOnboarding(event) {
+            event.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+
+            let minTemp = parseNumberOrNull(document.getElementById('minTemp').value);
+            let maxTemp = parseNumberOrNull(document.getElementById('maxTemp').value);
+            [minTemp, maxTemp] = normalizeRange(minTemp, maxTemp);
+
+            const payload = {
+                min_temp: minTemp,
+                max_temp: maxTemp,
+                favorite_weather: parseList(document.getElementById('favoriteWeather').value),
+                disliked_weather: parseList(document.getElementById('dislikedWeather').value),
+                activities: parseList(document.getElementById('activities').value),
+                diseases: parseList(document.getElementById('diseases').value),
+                blood_type: document.getElementById('bloodType').value,
+                medications: parseList(document.getElementById('medications').value),
+                allergies: parseList(document.getElementById('allergies').value),
+                health_notes: document.getElementById('healthNotes').value.trim(),
+                is_onboarded: true,
+            };
+
+            // 🎯 [DÜZELTME]: Çift istek tuzağını kırıp, tam nokta atışı metodla çıkıyoruz
+            const targetMethod = userAlreadyHasProfile ? 'PUT' : 'POST';
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/profiles/save/`, {
+                    method: targetMethod,
+                    body: JSON.stringify(payload),
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    setMessage(data.detail || 'Kaydetme başarısız.', true);
+                    btn.disabled = false;
+                    return;
+                }
+                
+                setMessage('Anket başarıyla kilitlendi, dashboard açılıyor...', false);
+                setTimeout(() => { window.location.href = '/dashboard.html'; }, 1000);
+            } catch (err) {
+                console.error(err);
+                setMessage('Bağlantı hatası oluştu.', true);
+                btn.disabled = false;
+            }
+        }
+
+        function generateStars() {
+            const field = document.getElementById('starField');
+            field.innerHTML = '';
+            for(let i=0; i<40; i++) {
+                let star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + 'vw';
+                star.style.top = Math.random() * 40 + 'vh';
+                star.style.width = star.style.height = Math.random() * 2.5 + 'px';
+                star.style.animationDelay = Math.random() * 2 + 's';
+                field.appendChild(star);
+            }
+        }
+
+        window.onload = loadExistingProfile;
+    </script>
+</body>
+</html>

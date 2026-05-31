@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather AI | Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/theme.css?v=6">
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <style>
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        .star { position: absolute; background: white; border-radius: 50%; animation: twinkle 2.3s infinite; z-index: 0; }
+        .drawer-transition { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Modern, ince ve yarı saydam scroll yapısı */
+        .custom-scroll::-webkit-scrollbar,
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track,
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb,
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 99px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover,
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+        
+        #globe-container canvas { display: block; margin: 0 auto; cursor: grab; }
+        #globe-container canvas:active { cursor: grabbing; }
+
+        input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+            display: none !important;
+            -webkit-appearance: none;
+        }
+    </style>
+</head>
+<body id="mainBody" class="min-h-screen font-sans transition-all duration-1000 overflow-x-hidden relative">
+
+    <div id="starField" class="absolute inset-0 pointer-events-none hidden"></div>
+    
+    <div id="navOverlay" class="fixed inset-0 bg-black/50 hidden z-40" onclick="closeNavMenu()"></div>
+    <aside id="navMenu" class="side-drawer fixed left-0 top-0 h-full w-[75%] max-w-xs backdrop-blur-xl z-50 shadow-2xl -translate-x-full drawer-transition flex flex-col justify-between p-6 border-r">
+        <div class="space-y-8">
+            <div class="flex items-center justify-between border-b border-white/10 pb-4">
+                <div class="flex items-center gap-2.5">
+                    <i class="fa-solid fa-cloud-sun text-blue-400 text-xl"></i>
+                    <span class="font-bold text-lg tracking-wide drawer-title">Weather AI</span>
+                </div>
+                <button onclick="closeNavMenu()" class="text-white/60 hover:text-white text-xl focus:outline-none">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <nav class="flex flex-col gap-2">
+                <a href="/dashboard.html" class="nav-link active flex items-center gap-4 px-4 py-3.5 rounded-xl font-medium text-sm transition-all">
+                    <i class="fa-solid fa-chart-simple w-5"></i><span>Dashboard</span>
+                </a>
+                <a href="#" id="menu-ai-chat" class="nav-link flex items-center gap-4 px-4 py-3.5 rounded-xl font-medium text-sm transition-all">
+                    <i class="fa-solid fa-comment-medical w-5"></i><span>AI Chat</span>
+                </a>
+                <a href="/history.html" class="nav-link flex items-center gap-4 px-4 py-3.5 rounded-xl font-medium text-sm transition-all">
+                    <i class="fa-solid fa-clock-rotate-left w-5"></i><span>Geçmiş Raporlar</span>
+                </a>
+                <button onclick="closeNavMenu(); openProfilePanel();" class="nav-link w-full flex items-center gap-4 px-4 py-3.5 rounded-xl font-medium text-sm text-left transition-all focus:outline-none">
+                    <i class="fa-solid fa-user-gear w-5"></i><span>Profil Ayarları</span>
+                </button>
+            </nav>
+        </div>
+        <div class="border-t border-white/10 pt-4">
+            <button onclick="logout()" class="btn-logout w-full flex items-center gap-4 px-4 py-3.5 hover:bg-red-500/10 rounded-xl font-medium text-sm text-left transition-all focus:outline-none">
+                <i class="fa-solid fa-arrow-right-from-bracket w-5"></i><span>Oturumu Kapat</span>
+            </button>
+        </div>
+    </aside>
+
+    <div id="profileOverlay" class="fixed inset-0 bg-black/50 hidden z-40" onclick="closeProfilePanel()"></div>
+    <aside id="profilePanel" class="side-drawer fixed right-0 top-0 h-full w-[85%] max-w-md backdrop-blur-xl z-50 shadow-2xl translate-x-full transition-transform duration-300 overflow-y-auto border-l flex flex-col p-6 justify-between">
+        <div class="space-y-6">
+            <div class="flex items-center justify-between border-b border-white/10 pb-4">
+                <div class="flex items-center gap-2.5">
+                    <i class="fa-solid fa-user-gear text-amber-300 text-xl"></i>
+                    <h2 class="text-lg font-bold tracking-wide">Profil & Ayarlar</h2>
+                </div>
+                <button onclick="closeProfilePanel()" class="text-white/60 hover:text-white transition-all text-xl focus:outline-none">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            
+            <p id="profileMeta" class="text-xs text-blue-300 font-medium tracking-wide bg-white/5 px-3 py-2 rounded-xl border border-white/5 inline-block"></p>
+            <div id="profileMsg" class="text-xs hidden font-medium p-2.5 rounded-xl border text-center transition-all"></div>
+            
+            <form id="profileForm" class="space-y-4" onsubmit="saveProfileSettings(event)">
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider opacity-70 block">Sıcaklık Tercihleri (°C)</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="profileMinTemp" class="w-full px-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm focus:outline-none focus:border-white/40 placeholder-white/40 text-white transition-all" placeholder="Min sıcaklık">
+                        <input type="number" id="profileMaxTemp" class="w-full px-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm focus:outline-none focus:border-white/40 placeholder-white/40 text-white transition-all" placeholder="Max sıcaklık">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider opacity-70 block">Sevdiğin Hava Durumları</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-50 text-sm"><i class="fa-solid fa-sun"></i></span>
+                        <input type="text" id="profileFavoriteWeather" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm focus:outline-none focus:border-white/40 placeholder-white/40 text-white transition-all" placeholder="Güneşli, karlı">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider opacity-70 block">Sevmediğin Hava Durumları</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-50 text-sm"><i class="fa-solid fa-wind"></i></span>
+                        <input type="text" id="profileDislikedWeather" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm focus:outline-none focus:border-white/40 placeholder-white/40 text-white transition-all" placeholder="Aşırı sıcak, fırtınalı">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider opacity-70 block">Düzenli Aktivitelerin</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-50 text-sm"><i class="fa-solid fa-dumbbell"></i></span>
+                        <input type="text" id="profileActivities" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm focus:outline-none focus:border-white/40 placeholder-white/40 text-white transition-all" placeholder="Boxing, yürüyüş">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-[10px] font-bold uppercase tracking-wider opacity-70 block">Sağlık Hassasiyetlerin</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-4 flex items-center opacity-50 text-sm"><i class="fa-solid fa-heart-pulse"></i></span>
+                        <input type="text" id="profileDiseases" class="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm focus:outline-none focus:border-white/40 placeholder-white/40 text-white transition-all" placeholder="Astım, migren (virgülle)">
+                    </div>
+                </div>
+
+                <div class="space-y-1.5 border-t border-white/10 pt-3">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-rose-200/90">Detaylı Sağlık Bilgileri</p>
+                    <label class="text-[10px] opacity-70 block">Kan grubu</label>
+                    <select id="profileBloodType" class="app-select focus:outline-none focus:ring-2 focus:ring-sky-400/40">
+                        <option value="">Belirtmek istemiyorum</option>
+                        <option value="A+">A Rh+</option><option value="A-">A Rh-</option>
+                        <option value="B+">B Rh+</option><option value="B-">B Rh-</option>
+                        <option value="AB+">AB Rh+</option><option value="AB-">AB Rh-</option>
+                        <option value="0+">0 Rh+</option><option value="0-">0 Rh-</option>
+                    </select>
+                    <label class="text-[10px] opacity-70 block mt-2">Kullandığın ilaçlar</label>
+                    <input type="text" id="profileMedications" class="w-full px-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm text-white placeholder-white/40" placeholder="Ventolin, antihistamin (virgülle)">
+                    <label class="text-[10px] opacity-70 block mt-2">Alerjiler</label>
+                    <input type="text" id="profileAllergies" class="w-full px-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm text-white placeholder-white/40" placeholder="Polen, fıstık (virgülle)">
+                    <label class="text-[10px] opacity-70 block mt-2">Ek sağlık notları</label>
+                    <textarea id="profileHealthNotes" rows="2" class="w-full px-4 py-3 bg-white/10 border border-white/10 rounded-2xl text-sm text-white placeholder-white/40 custom-scroll" placeholder="Doktor önerileri, kronik durumlar…"></textarea>
+                </div>
+
+                <button type="submit" class="w-full py-3.5 bg-white text-slate-900 rounded-2xl text-sm font-semibold shadow-xl hover:bg-slate-100 active:scale-[0.99] transition-all flex justify-center items-center gap-2 focus:outline-none">
+                    <span>Profili Güncelle</span>
+                    <i class="fa-solid fa-floppy-disk text-xs opacity-70"></i>
+                </button>
+            </form>
+        </div>
+        <div class="text-[10px] text-center opacity-40 border-t border-white/5 pt-4 tracking-wider">
+            HAVA SAĞLIK AI v1.0 
+        </div>
+    </aside>
+
+    <div class="max-w-md mx-auto p-5 min-h-screen relative z-10 flex flex-col justify-between">
+        
+        <div class="flex justify-between items-center pt-2">
+            <button onclick="openNavMenu()" class="text-2xl focus:outline-none hover:opacity-80 transition-all"><i class="fa-solid fa-bars"></i></button>
+            
+            <div class="relative">
+                <button onclick="toggleCityDropdown(event)" class="flex items-center gap-1.5 font-semibold bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/10 hover:bg-white/20 text-sm transition-all text-white focus:outline-none">
+                    <i class="fa-solid fa-location-dot text-red-400"></i>
+                    <span id="cityNameDisplay">Konum Alınıyor...</span>
+                    <i class="fa-solid fa-chevron-down text-[10px] opacity-70 ml-0.5"></i>
+                </button>
+                
+                <div id="customCityDropdown" onclick="event.stopPropagation()" class="city-dropdown-panel absolute left-0 mt-2 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 hidden flex-col gap-2 z-50 text-xs">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] opacity-50 pointer-events-none"></i>
+                        <input type="text" id="citySearchInput" class="city-search-input" placeholder="Şehir ara (örn. malatya)..." autocomplete="off" oninput="onCitySearchInput(this.value)">
+                    </div>
+                    <p class="text-[9px] opacity-50 px-1">Hızlı seçim</p>
+                    <div id="cityDropdownList" class="city-dropdown-list flex flex-col gap-0.5"></div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="logout()" class="text-xs font-semibold px-3 py-1.5 rounded-xl border border-white/25 bg-white/10 hover:bg-white/20 transition-all focus:outline-none">Çıkış</button>
+                <button type="button" onclick="openProfilePanel()" class="text-2xl focus:outline-none opacity-90"><i class="fa-solid fa-user-gear"></i></button>
+            </div>
+        </div>
+
+        <div class="relative w-full h-48 my-2 flex justify-center items-center">
+            <div id="dayIllustration" class="w-full h-full flex flex-col justify-center items-center hidden">
+                <div class="absolute top-4 left-12 w-20 h-20 bg-yellow-400 rounded-full blur-sm shadow-[0_0_30px_#f59e0b]"></div>
+                <i class="fa-solid fa-cloud text-6xl text-white/90 absolute top-10 left-20"></i>
+                <i class="fa-solid fa-umbrella-beach text-8xl text-orange-400 mt-10"></i>
+            </div>
+            <div id="nightIllustration" class="w-full h-full flex justify-center items-center hidden">
+                <div class="absolute top-2 left-10 text-7xl text-gray-100 drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"><i class="fa-solid fa-moon"></i></div>
+                <i class="fa-solid fa-tree text-8xl text-emerald-900/80 absolute bottom-2 right-12"></i>
+                <div class="absolute bottom-12 right-14 text-amber-200 text-2xl"><i class="fa-solid fa-owl"></i></div>
+            </div>
+        </div>
+
+        <div class="text-left px-2">
+            <h1 id="mainTemp" class="text-7xl font-extralight tracking-tighter">--°</h1>
+            <p id="weatherCondition" class="text-xl font-light opacity-90">Yükleniyor...</p>
+            <p id="feelsLike" class="text-xs opacity-75 mt-1">Hissedilen: --°</p>
+        </div>
+
+        <div id="hourlyWeatherSection" class="glass-card p-3 mb-3 hidden">
+            <h3 class="text-[10px] font-bold uppercase tracking-widest opacity-80 mb-2 text-left">Saatlik Tahmin</h3>
+            <div id="hourlyScroll" class="hourly-scroll"></div>
+        </div>
+
+        <div id="weatherAlertBanner" class="glass-card weather-alert-banner p-3 mb-3 hidden text-xs text-left">
+            <div class="flex items-center gap-2 font-bold text-sky-300 mb-1">
+                <i class="fa-solid fa-cloud-rain"></i>
+                <span id="weatherAlertTitle">Hava uyarısı</span>
+            </div>
+            <p id="weatherAlertMessage" class="leading-relaxed opacity-90"></p>
+        </div>
+
+        <div id="userNotificationWrapper" class="space-y-2 mb-3 hidden">
+            </div>
+
+        <div class="glass-card p-4 my-3">
+            <div class="flex justify-between text-xs font-bold uppercase tracking-wider mb-2 opacity-80">
+                <span>AQI - Hava Kalitesi</span>
+                <span id="aqiStatus" class="text-slate-200">Yükleniyor...</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 relative">
+                <div id="aqiMarker" class="absolute top-[-3px] w-3 h-3 bg-white rounded-full border-2 border-green-500" style="left: 0%;"></div>
+            </div>
+        </div>
+
+        <div id="ai-summary-wrapper" class="glass-card p-5 mb-3 border-l-4 border-amber-400 shadow-xl transition-all duration-500">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2 text-amber-300 font-semibold tracking-wider uppercase text-xs">
+                    <i class="fa-solid fa-wand-magic-sparkles id-sparkle-icon"></i>
+                    <span>AI Sağlık & Risk Rehberi</span>
+                </div>
+                <span id="aiRiskBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-white/10 font-bold uppercase">--</span>
+            </div>
+            <p id="aiSummaryText" class="text-sm leading-relaxed font-light">Yapay zeka verileri işliyor...</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-3">
+            <div class="glass-card p-4 flex flex-col justify-between h-24">
+                <span class="text-[10px] font-bold uppercase tracking-widest opacity-70">UV Endeksi</span>
+                <span id="uvText" class="text-base font-semibold">Yükleniyor...</span>
+                <div class="w-full h-1.5 rounded-full bg-gradient-to-r from-green-400 to-purple-600 relative">
+                    <div id="uvMarker" class="absolute top-[-3px] w-2.5 h-2.5 bg-white rounded-full shadow" style="left: 0%;"></div>
+                </div>
+            </div>
+            <div class="glass-card p-4 flex justify-between items-center h-24">
+                <div class="flex flex-col justify-between h-full text-left">
+                    <span class="text-[10px] font-bold uppercase tracking-widest opacity-70">Ay Durumu</span>
+                    <span id="moonAgeText" class="text-xs font-medium">Yükleniyor...</span>
+                    <span id="moonPhaseText" class="text-[10px] opacity-70">Yükleniyor...</span>
+                </div>
+                <i class="fa-solid fa-circle-half-stroke text-3xl opacity-85 text-amber-100"></i>
+            </div>
+        </div>
+
+        <div class="glass-card p-4 mb-3 max-h-40 overflow-y-auto custom-scroll">
+            <h3 class="text-xs font-bold uppercase tracking-widest mb-2 opacity-70">7 Günlük Tahmin</h3>
+            <div id="forecastList" class="space-y-2 text-sm">
+                <div class="opacity-70">Tahmin verisi yükleniyor...</div>
+            </div>
+        </div>
+
+        <div class="glass-card p-4 mb-3 flex flex-col gap-3">
+            <div class="text-[10px] font-bold uppercase tracking-widest opacity-70 flex items-center justify-between">
+                <span><i class="fa-solid fa-calendar-check mr-1 text-blue-400"></i> Ajanda & Etkinlik Planlayıcı</span>
+                <button onclick="toggleEventForm()" class="text-[10px] px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 font-bold hover:bg-blue-500/30 transition-all focus:outline-none">+ Etkinlik Ekle</button>
+            </div>
+
+            <form id="calendarEventForm" onsubmit="addCalendarEvent(event)" class="space-y-2 hidden border-b border-white/5 pb-3">
+                <input type="text" id="eventTitle" placeholder="Etkinlik Adı" required class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs focus:outline-none text-white placeholder-white/30">
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="space-y-0.5">
+                        <label class="text-[9px] opacity-60">Başlangıç</label>
+                        <input type="datetime-local" id="eventStart" required class="hidden">
+                        <button type="button" onclick="openCustomPicker('eventStart')" id="eventStartBtn" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-[11px] text-left text-white/50 flex justify-between items-center focus:outline-none">
+                            <span id="eventStartLabel">Seçiniz...</span>
+                            <i class="fa-regular fa-calendar text-[10px] opacity-60"></i>
+                        </button>
+                    </div>
+                    <div class="space-y-0.5">
+                        <label class="text-[9px] opacity-60">Bitiş</label>
+                        <input type="datetime-local" id="eventEnd" required class="hidden">
+                        <button type="button" onclick="openCustomPicker('eventEnd')" id="eventEndBtn" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-[11px] text-left text-white/50 flex justify-between items-center focus:outline-none">
+                            <span id="eventEndLabel">Seçiniz...</span>
+                            <i class="fa-regular fa-clock text-[10px] opacity-60"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <input type="text" id="eventLocation" placeholder="Konum / Yer (Opsiyonel)" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl text-xs focus:outline-none text-white placeholder-white/30">
+                <button type="submit" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl text-xs shadow-md transition-all">Kaydet</button>
+            </form>
+
+            <div id="calendarEventsList" class="space-y-2 max-h-36 overflow-y-auto custom-scroll text-xs">
+                <div class="opacity-40 text-center py-2">Planlanmış etkinlik bulunmuyor.</div>
+            </div>
+        </div>
+
+        <div class="glass-card p-4 mb-2 flex flex-col items-center justify-center">
+            <div class="text-[10px] font-bold uppercase tracking-widest opacity-70 mb-2 w-full text-left flex items-center justify-between">
+                <span><i class="fa-solid fa-earth-americas mr-1"></i> İnteraktif Dünya Küresi</span>
+                <span class="text-[9px] opacity-50 font-normal">Çevir ve Noktaya Tıkla</span>
+            </div>
+            <div id="globe-container" class="w-full flex justify-center items-center relative h-40"></div>
+        </div>
+    </div>
+
+    <div id="customPickerModal" class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300" onclick="closeCustomPicker()">
+        <div class="w-[290px] bg-slate-900/90 backdrop-blur-2xl border border-white/15 rounded-3xl p-4 text-white shadow-2xl flex flex-col gap-3" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center border-b border-white/5 pb-2">
+                <span id="pickerModalTitle" class="text-xs font-bold uppercase tracking-wider text-blue-400">Tarih Seçimi</span>
+                <button onclick="closeCustomPicker()" class="text-white/60 hover:text-white transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-1.5 text-center">
+                <div class="flex flex-col gap-1">
+                    <span class="text-[9px] opacity-40 font-bold tracking-wider uppercase">Gün</span>
+                    <div id="customListDay" class="h-28 overflow-y-auto bg-white/5 border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 custom-scroll"></div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-[9px] opacity-40 font-bold tracking-wider uppercase">Ay</span>
+                    <div id="customListMonth" class="h-28 overflow-y-auto bg-white/5 border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 custom-scroll"></div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-[9px] opacity-40 font-bold tracking-wider uppercase">Yıl</span>
+                    <div id="customListYear" class="h-28 overflow-y-auto bg-white/5 border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 custom-scroll"></div>
+                </div>
+            </div>
+
+            <div class="text-xs font-bold uppercase tracking-wider text-blue-400 border-b border-white/5 pb-1 mt-1">Saat Seçimi</div>
+            
+            <div class="grid grid-cols-2 gap-3 text-center">
+                <div class="flex flex-col gap-1">
+                    <span class="text-[9px] opacity-40 font-bold tracking-wider uppercase">Saat</span>
+                    <div id="customListHour" class="h-24 overflow-y-auto bg-white/5 border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 custom-scroll"></div>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <span class="text-[9px] opacity-40 font-bold tracking-wider uppercase">Dakika</span>
+                    <div id="customListMinute" class="h-24 overflow-y-auto bg-white/5 border border-white/5 rounded-xl p-1 flex flex-col gap-0.5 custom-scroll"></div>
+                </div>
+            </div>
+
+            <button onclick="commitCustomPickerSelection()" class="w-full py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg mt-2 focus:outline-none">Onayla</button>
+        </div>
+    </div>
+
+    <div id="chat-widget" class="fixed bottom-6 right-6 z-50 w-[380px] h-[520px] bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl flex flex-col hidden opacity-0 translate-y-4 transition-all duration-300 overflow-hidden">
+        <div class="p-4 border-b border-white/5 bg-gradient-to-r from-blue-500/10 to-teal-500/10 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                <div>
+                    <h3 class="font-semibold text-slate-200 text-sm">HAVA  SAĞLIK AI Asistanı</h3>
+                    <p class="text-[11px] text-slate-400">Aktif • Kişisel Rehber</p>
+                </div>
+            </div>
+            <button onclick="closeChat()" class="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-white/5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="chat-messages-container" class="flex-1 p-4 overflow-y-auto space-y-3 text-sm custom-scrollbar">
+            <div class="flex gap-2 max-w-[85%]">
+                <div id="welcome-message-text" class="bg-white/5 text-slate-200 p-3 rounded-2xl rounded-tl-none border border-white/5 shadow-md">
+                    Merhaba! Ben senin kişisel hava durumu ve aktivite asistanınım. Bugün sana nasıl yardımcı olabilirim? 
+                </div>
+            </div>
+        </div>
+        <div class="p-3 border-t border-white/5 bg-slate-950/40 flex gap-2 items-center">
+            <input type="text" id="chat-input" placeholder="Asistanına bir şeyler sor..." autocomplete="off" onkeydown="if(event.key === 'Enter') sendChatMessage()" class="flex-1 bg-white/5 border border-white/5 rounded-xl px-3.5 py-2 text-slate-200 text-sm focus:outline-none focus:border-blue-500 placeholder-white/20 transition-colors">
+            <button onclick="sendChatMessage()" class="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-colors shadow-lg flex items-center justify-center min-w-[40px]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <button id="chat-trigger" onclick="openChat()" class="fixed bottom-6 right-6 z-40 bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center justify-center">
+        <i class="fas fa-comments text-xl"></i>
+    </button>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        let currentProfile = null;
+        let activePickerTargetId = null;
+        
+        let selectedDay = "01";
+        let selectedMonth = "05";
+        let selectedYear = "2026";
+        let selectedHour = "12";
+        let selectedMinute = "00";
+
+        const monthsMap = {
+            "01": "Ocak", "02": "Şubat", "03": "Mart", "04": "Nisan",
+            "05": "Mayıs", "06": "Haziran", "07": "Temmuz", "08": "Ağustos",
+            "09": "Eylül", "10": "Ekim", "11": "Kasım", "12": "Aralık"
+        };
+
+        function openNavMenu() {
+            document.getElementById('navOverlay').classList.remove('hidden');
+            document.getElementById('navMenu').classList.remove('-translate-x-full');
+        }
+
+        function closeNavMenu() {
+            document.getElementById('navMenu').classList.add('-translate-x-full');
+            document.getElementById('navOverlay').classList.add('hidden');
+        }
+
+        const PRESET_CITIES = [
+            { name: 'Malatya', lat: 38.3552, lon: 38.3093 },
+            { name: 'Diyarbakır', lat: 37.9133, lon: 40.2317 },
+            { name: 'Gaziantep', lat: 37.0660, lon: 37.3833 },
+            { name: 'Elazığ', lat: 38.6748, lon: 39.2225 },
+            { name: 'Ankara', lat: 39.9208, lon: 32.8541 },
+            { name: 'İstanbul', lat: 41.0082, lon: 28.9784 },
+            { name: 'İzmir', lat: 38.4192, lon: 27.1287 },
+            { name: 'Antalya', lat: 36.8841, lon: 30.7056 },
+        ];
+
+        let citySearchTimer = null;
+
+        function normalizeTr(text) {
+            return (text || '').toLocaleLowerCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+
+        function renderCityOptions(cities) {
+            const list = document.getElementById('cityDropdownList');
+            if (!cities.length) {
+                list.innerHTML = '<div class="opacity-50 text-center py-2 text-[10px]">Sonuç bulunamadı</div>';
+                return;
+            }
+            list.innerHTML = cities.map((c) => {
+                const label = c.display || c.label || c.name;
+                const lat = c.lat;
+                const lon = c.lon;
+                const safeLabel = label.replace(/'/g, "\\'");
+                return `<button type="button" class="city-option-btn" onclick="selectCustomCity('lat=${lat}&lon=${lon}', '${safeLabel}')">${label}</button>`;
+            }).join('');
+        }
+
+        function filterPresetCities(query) {
+            const nq = normalizeTr(query);
+            if (!nq) return PRESET_CITIES.map((c) => ({ ...c, label: c.display || c.name }));
+            return PRESET_CITIES.filter((c) => {
+                const label = c.display || c.name;
+                return normalizeTr(label).includes(nq);
+            }).map((c) => ({ ...c, label: c.display || c.name }));
+        }
+
+        function onCitySearchInput(value) {
+            clearTimeout(citySearchTimer);
+            const trimmed = value.trim();
+            const presets = filterPresetCities(trimmed);
+            if (trimmed.length < 2) {
+                renderCityOptions(presets);
+                return;
+            }
+            renderCityOptions(presets);
+            citySearchTimer = setTimeout(async () => {
+                try {
+                    const res = await authFetch(`${API_BASE}/api/weather/search/?q=${encodeURIComponent(trimmed)}`, { method: 'GET' });
+                    const data = await res.json();
+                    if (res.ok && data.success && data.cities?.length) {
+                        const merged = [...presets];
+                        const seen = new Set(presets.map((p) => `${p.lat},${p.lon}`));
+                        data.cities.forEach((c) => {
+                            const key = `${c.lat},${c.lon}`;
+                            if (!seen.has(key)) {
+                                merged.push({ name: c.name, lat: c.lat, lon: c.lon, label: c.label });
+                                seen.add(key);
+                            }
+                        });
+                        renderCityOptions(merged);
+                    }
+                } catch (e) { console.error(e); }
+            }, 350);
+        }
+
+        function toggleCityDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('customCityDropdown');
+            const opening = dropdown.classList.contains('hidden');
+            dropdown.classList.toggle('hidden');
+            dropdown.classList.toggle('flex');
+            if (opening) {
+                document.getElementById('citySearchInput').value = '';
+                renderCityOptions(PRESET_CITIES.map((c) => ({ ...c, label: c.display || c.name })));
+                setTimeout(() => document.getElementById('citySearchInput').focus(), 50);
+            }
+        }
+
+        async function selectCustomCity(queryParams, cityName) {
+            document.getElementById('cityNameDisplay').innerText = cityName;
+            const dropdown = document.getElementById('customCityDropdown');
+            dropdown.classList.add('hidden');
+            dropdown.classList.remove('flex');
+            await fetchDashboardData(`?${queryParams}`);
+        }
+
+        document.addEventListener('click', () => {
+            const dropdown = document.getElementById('customCityDropdown');
+            if (dropdown) {
+                dropdown.classList.add('hidden');
+                dropdown.classList.remove('flex');
+            }
+        });
+
+        function buildCustomPickerLists() {
+            const dayContainer = document.getElementById('customListDay');
+            dayContainer.innerHTML = '';
+            for(let i = 1; i <= 31; i++) {
+                let val = i < 10 ? '0' + i : '' + i;
+                let activeClass = selectedDay === val ? 'bg-blue-600 font-bold' : 'hover:bg-white/5';
+                dayContainer.innerHTML += `<button type="button" onclick="selectPickerPart('day', '${val}')" id="btn-day-${val}" class="w-full text-center py-1 rounded-lg transition-colors text-[11px] focus:outline-none ${activeClass}">${val}</button>`;
+            }
+
+            const monthContainer = document.getElementById('customListMonth');
+            monthContainer.innerHTML = '';
+            Object.keys(monthsMap).forEach(key => {
+                let activeClass = selectedMonth === key ? 'bg-blue-600 font-bold' : 'hover:bg-white/5';
+                monthContainer.innerHTML += `<button type="button" onclick="selectPickerPart('month', '${key}')" id="btn-month-${key}" class="w-full text-center py-1 rounded-lg transition-colors text-[11px] focus:outline-none ${activeClass}">${monthsMap[key]}</button>`;
+            });
+
+            const yearContainer = document.getElementById('customListYear');
+            yearContainer.innerHTML = '';
+            ["2026", "2027"].forEach(y => {
+                let activeClass = selectedYear === y ? 'bg-blue-600 font-bold' : 'hover:bg-white/5';
+                yearContainer.innerHTML += `<button type="button" onclick="selectPickerPart('year', '${y}')" id="btn-year-${y}" class="w-full text-center py-1 rounded-lg transition-colors text-[11px] focus:outline-none ${activeClass}">${y}</button>`;
+            });
+
+            const hourContainer = document.getElementById('customListHour');
+            hourContainer.innerHTML = '';
+            for(let i = 0; i < 24; i++) {
+                let val = i < 10 ? '0' + i : '' + i;
+                let activeClass = selectedHour === val ? 'bg-blue-600 font-bold' : 'hover:bg-white/5';
+                hourContainer.innerHTML += `<button type="button" onclick="selectPickerPart('hour', '${val}')" id="btn-hour-${val}" class="w-full text-center py-1 rounded-lg transition-colors text-[11px] focus:outline-none ${activeClass}">${val}</button>`;
+            }
+
+            const minContainer = document.getElementById('customListMinute');
+            minContainer.innerHTML = '';
+            for(let i = 0; i < 60; i += 5) {
+                let val = i < 10 ? '0' + i : '' + i;
+                let activeClass = selectedMinute === val ? 'bg-blue-600 font-bold' : 'hover:bg-white/5';
+                minContainer.innerHTML += `<button type="button" onclick="selectPickerPart('minute', '${val}')" id="btn-minute-${val}" class="w-full text-center py-1 rounded-lg transition-colors text-[11px] focus:outline-none ${activeClass}">${val}</button>`;
+            }
+        }
+
+        function selectPickerPart(type, value) {
+            if (type === 'day') {
+                document.getElementById(`btn-day-${selectedDay}`)?.classList.remove('bg-blue-600', 'font-bold');
+                selectedDay = value;
+                document.getElementById(`btn-day-${value}`)?.classList.add('bg-blue-600', 'font-bold');
+            } else if (type === 'month') {
+                document.getElementById(`btn-month-${selectedMonth}`)?.classList.remove('bg-blue-600', 'font-bold');
+                selectedMonth = value;
+                document.getElementById(`btn-month-${value}`)?.classList.add('bg-blue-600', 'font-bold');
+            } else if (type === 'year') {
+                document.getElementById(`btn-year-${selectedYear}`)?.classList.remove('bg-blue-600', 'font-bold');
+                selectedYear = value;
+                document.getElementById(`btn-year-${value}`)?.classList.add('bg-blue-600', 'font-bold');
+            } else if (type === 'hour') {
+                document.getElementById(`btn-hour-${selectedHour}`)?.classList.remove('bg-blue-600', 'font-bold');
+                selectedHour = value;
+                document.getElementById(`btn-hour-${value}`)?.classList.add('bg-blue-600', 'font-bold');
+            } else if (type === 'minute') {
+                document.getElementById(`btn-minute-${selectedMinute}`)?.classList.remove('bg-blue-600', 'font-bold');
+                selectedMinute = value;
+                document.getElementById(`btn-minute-${value}`)?.classList.add('bg-blue-600', 'font-bold');
+            }
+        }
+
+        function openCustomPicker(targetInputId) {
+            activePickerTargetId = targetInputId;
+            const now = new Date();
+            selectedDay = now.getDate() < 10 ? '0' + now.getDate() : '' + now.getDate();
+            selectedMonth = (now.getMonth() + 1) < 10 ? '0' + (now.getMonth() + 1) : '' + (now.getMonth() + 1);
+            selectedYear = "" + now.getFullYear();
+            selectedHour = now.getHours() < 10 ? '0' + now.getHours() : '' + now.getHours();
+            let m = Math.round(now.getMinutes() / 5) * 5;
+            if (m >= 60) m = 55;
+            selectedMinute = m < 10 ? '0' + m : '' + m;
+
+            buildCustomPickerLists();
+            
+            const modalTitle = document.getElementById('pickerModalTitle');
+            modalTitle.innerText = targetInputId === 'eventStart' ? 'BAŞLANGIÇ ZAMANI' : 'BİTİŞ ZAMANI';
+            
+            const modal = document.getElementById('customPickerModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); }, 10);
+            
+            setTimeout(() => {
+                document.getElementById(`btn-day-${selectedDay}`)?.scrollIntoView({ block: 'center' });
+                document.getElementById(`btn-month-${selectedMonth}`)?.scrollIntoView({ block: 'center' });
+                document.getElementById(`btn-hour-${selectedHour}`)?.scrollIntoView({ block: 'center' });
+                document.getElementById(`btn-minute-${selectedMinute}`)?.scrollIntoView({ block: 'center' });
+            }, 50);
+        }
+
+        function closeCustomPicker() {
+            const modal = document.getElementById('customPickerModal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        function commitCustomPickerSelection() {
+            const finalIsoString = `${selectedYear}-${selectedMonth}-${selectedDay}T${selectedHour}:${selectedMinute}`;
+            document.getElementById(activePickerTargetId).value = finalIsoString;
+            
+            const labelEl = document.getElementById(`${activePickerTargetId}Label`);
+            labelEl.innerText = `${selectedDay} ${monthsMap[selectedMonth]} - ${selectedHour}:${selectedMinute}`;
+            labelEl.classList.remove('text-white/50');
+            labelEl.classList.add('text-white', 'font-semibold');
+
+            closeCustomPicker();
+        }
+
+        function parseList(value) { return value.split(',').map((v) => v.trim()).filter(Boolean); }
+        function parseNumberOrNull(value) {
+            if (value === '' || value === null || value === undefined) return null;
+            const num = Number(value);
+            return Number.isNaN(num) ? null : num;
+        }
+        function normalizeRange(minValue, maxValue) {
+            if (minValue === null || maxValue === null) return [minValue, maxValue];
+            if (minValue <= maxValue) return [minValue, maxValue];
+            return [maxValue, minValue];
+        }
+
+        function profileMessage(text, isError = false) {
+            const box = document.getElementById('profileMsg');
+            box.classList.remove('hidden');
+            box.className = isError 
+                ? 'text-red-200 text-xs font-medium bg-red-500/20 p-2.5 rounded-xl border border-red-500/30 text-center block'
+                : 'text-emerald-200 text-xs font-medium bg-emerald-500/20 p-2.5 rounded-xl border border-emerald-500/30 text-center block';
+            box.textContent = text;
+        }
+
+        async function fetchProfile() {
+            const resp = await authFetch(`${API_BASE}/api/profiles/me/`, { method: 'GET' });
+            if (!resp.ok) return null;
+            const data = await resp.json();
+            currentProfile = data;
+            return data;
+        }
+
+        function fillProfileForm(profile) {
+            if (!profile) return;
+            document.getElementById('profileMeta').innerText = `${profile.username} • ${profile.email || ''}`;
+            document.getElementById('profileMinTemp').value = profile.min_temp ?? '';
+            document.getElementById('profileMaxTemp').value = profile.max_temp ?? '';
+            document.getElementById('profileFavoriteWeather').value = (profile.favorite_weather || []).join(', ');
+            document.getElementById('profileDislikedWeather').value = (profile.disliked_weather || []).join(', ');
+            document.getElementById('profileActivities').value = (profile.activities || []).join(', ');
+            document.getElementById('profileDiseases').value = (profile.diseases || []).join(', ');
+            document.getElementById('profileBloodType').value = profile.blood_type || '';
+            document.getElementById('profileMedications').value = (profile.medications || []).join(', ');
+            document.getElementById('profileAllergies').value = (profile.allergies || []).join(', ');
+            document.getElementById('profileHealthNotes').value = profile.health_notes || '';
+        }
+
+        function openProfilePanel() {
+            document.getElementById('profileOverlay').classList.remove('hidden');
+            document.getElementById('profilePanel').classList.remove('translate-x-full');
+        }
+        function closeProfilePanel() {
+            document.getElementById('profilePanel').classList.add('translate-x-full');
+            document.getElementById('profileOverlay').classList.add('hidden');
+        }
+
+        async function saveProfileSettings(event) {
+            event.preventDefault();
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalBtnContent = submitBtn.innerHTML;
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<span>Güncelleniyor...</span> <i class="fa-solid fa-spinner animate-spin text-xs"></i>`;
+
+            let minTemp = parseNumberOrNull(document.getElementById('profileMinTemp').value);
+            let maxTemp = parseNumberOrNull(document.getElementById('profileMaxTemp').value);
+            [minTemp, maxTemp] = normalizeRange(minTemp, maxTemp);
+
+            const payload = {
+                min_temp: minTemp,
+                max_temp: maxTemp,
+                favorite_weather: parseList(document.getElementById('profileFavoriteWeather').value),
+                disliked_weather: parseList(document.getElementById('profileDislikedWeather').value),
+                activities: parseList(document.getElementById('profileActivities').value),
+                diseases: parseList(document.getElementById('profileDiseases').value),
+                blood_type: document.getElementById('profileBloodType').value,
+                medications: parseList(document.getElementById('profileMedications').value),
+                allergies: parseList(document.getElementById('profileAllergies').value),
+                health_notes: document.getElementById('profileHealthNotes').value.trim(),
+                is_onboarded: true,
+            };
+
+            try {
+                let resp = await authFetch(`${API_BASE}/api/profiles/save/`, { method: 'PUT', body: JSON.stringify(payload) });
+                if (resp.status === 404) {
+                    resp = await authFetch(`${API_BASE}/api/profiles/save/`, { method: 'POST', body: JSON.stringify(payload) });
+                }
+                const data = await resp.json();
+                if (!resp.ok) {
+                    profileMessage(data.detail || 'Profil güncellenemedi.', true);
+                    submitBtn.disabled = false; submitBtn.innerHTML = originalBtnContent; return;
+                }
+
+                profileMessage('Profil başarıyla güncellendi! Yeni AI analizi hazırlanıyor...', false);
+                await fetchProfile();
+
+                setTimeout(async () => {
+                    closeProfilePanel();
+                    submitBtn.disabled = false; submitBtn.innerHTML = originalBtnContent;
+                    await fetchDashboardData('');
+                }, 1500);
+
+            } catch (error) {
+                console.error(error);
+                profileMessage('Güncelleme işlendi. Panel kapatılıyor...', false);
+                setTimeout(async () => {
+                    closeProfilePanel(); submitBtn.disabled = false; submitBtn.innerHTML = originalBtnContent;
+                    await fetchDashboardData('');
+                }, 1500);
+            }
+        }
+
+        function toggleEventForm() {
+            document.getElementById('calendarEventForm').classList.toggle('hidden');
+        }
+
+        async function fetchCalendarEvents(triggerSummaryRefresh = false) {
+            try {
+                const response = await authFetch(`${API_BASE}/api/calendar/events/`, { method: 'GET' });
+                if (!response.ok) return;
+                const data = await response.json();
+
+                const container = document.getElementById('calendarEventsList');
+                if (!data.events || data.events.length === 0) {
+                    container.innerHTML = `<div class="opacity-40 text-center py-2">Planlanmış etkinlik bulunmuyor.</div>`;
+                    return;
+                }
+
+                if (triggerSummaryRefresh && window._lastWeatherParams !== undefined) {
+                    const base = window._lastWeatherParams;
+                    const join = base.includes('?') ? '&' : '?';
+                    if (!base.includes('refresh=1')) {
+                        await fetchDashboardData(base + join + 'refresh=1');
+                    }
+                }
+
+                container.innerHTML = data.events.map(ev => {
+                    const startObj = new Date(ev.start_datetime);
+                    const formattedTime = startObj.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) + ' ' + startObj.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                    const loc = ev.location ? `<span class="opacity-50 ml-1"><i class="fa-solid fa-location-dot text-[10px]"></i> ${ev.location}</span>` : '';
+                    
+                    return `
+                        <div class="flex justify-between items-start bg-white/5 border border-white/5 p-2 rounded-xl mb-1.5 last:mb-0">
+                            <div class="flex flex-col gap-0.5 text-left">
+                                <span class="font-semibold text-slate-200">${ev.title}</span>
+                                <span class="text-[10px] opacity-60">${formattedTime}${loc}</span>
+                            </div>
+                            <button onclick="deleteCalendarEvent(${ev.id})" class="text-red-400 hover:text-red-300 p-1 transition-colors focus:outline-none">
+                                <i class="fa-solid fa-trash-can text-[11px]"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            } catch (err) { console.error(err); }
+        }
+
+        async function addCalendarEvent(event) {
+            event.preventDefault();
+            const title = document.getElementById('eventTitle').value;
+            const start = document.getElementById('eventStart').value;
+            const end = document.getElementById('eventEnd').value;
+            const location = document.getElementById('eventLocation').value;
+
+            const payload = { title, start_datetime: start, end_datetime: end, location };
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/calendar/events/`, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    document.getElementById('calendarEventForm').reset();
+                    document.getElementById('calendarEventForm').classList.add('hidden');
+                    
+                    document.getElementById('eventStartLabel').innerText = "Seçiniz...";
+                    document.getElementById('eventEndLabel').innerText = "Seçiniz...";
+                    document.getElementById('eventStartLabel').className = "text-white/50";
+                    document.getElementById('eventEndLabel').className = "text-white/50";
+                    
+                    await fetchCalendarEvents();
+                    await fetchDashboardData('');
+                } else {
+                    alert(data.errors?.end_datetime ? data.errors.end_datetime[0] : "Etkinlik eklenemedi.");
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function deleteCalendarEvent(eventId) {
+            if (!confirm("Bu etkinliği silmek istediğinize emin misiniz?")) return;
+            try {
+                const response = await authFetch(`${API_BASE}/api/calendar/events/${eventId}/delete/`, { method: 'DELETE' });
+                if (response.ok) {
+                    await fetchCalendarEvents();
+                    await fetchDashboardData('');
+                }
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadDashboard() {
+            if (!isLoggedIn()) { redirectToLogin(); return; }
+            const profile = await fetchProfile();
+            if (!profile || !profile.is_onboarded) { window.location.href = '/onboarding.html'; return; }
+            fillProfileForm(profile);
+            
+            const onLocationReady = async (urlParams) => {
+                await fetchDashboardData(urlParams);
+                await fetchCalendarEvents(true);
+                init3DGlobe();
+            };
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude; const lon = position.coords.longitude;
+                        onLocationReady(`?lat=${lat}&lon=${lon}`);
+                    },
+                    () => onLocationReady(''), { timeout: 8000 }
+                );
+            } else { await onLocationReady(''); }
+        }
+
+        async function fetchDashboardData(urlParams) {
+            window._lastWeatherParams = urlParams;
+            const wrapper = document.getElementById('ai-summary-wrapper');
+            const sparkle = document.querySelector('.id-sparkle-icon');
+            if(wrapper) wrapper.style.opacity = '0.5';
+            if(sparkle) sparkle.classList.add('animate-spin');
+
+            try {
+                const url = `${API_BASE}/api/summary/daily/${urlParams}`;
+                const response = await authFetch(url, { method: 'GET' });
+                if (response.status === 401) { redirectToLogin(); return; }
+                if (!response.ok) { document.getElementById('aiSummaryText').innerText = 'Veriler yüklenemedi.'; return; }
+
+                const data = await response.json();
+                
+                const cityNameDisplay = document.getElementById('cityNameDisplay');
+                if (cityNameDisplay && data.user.city) {
+                    cityNameDisplay.innerText = data.user.city; 
+                }
+
+                document.getElementById('mainTemp').innerText = `${data.weather_metrics.temperature}°`;
+                document.getElementById('weatherCondition').innerText = data.weather_metrics.detail_condition;
+                document.getElementById('feelsLike').innerText = `Hissedilen: ${data.weather_metrics.feels_like}°`;
+                
+                document.getElementById('aiSummaryText').innerText = data.ai_advisory.summary_card;
+                const badge = document.getElementById('aiRiskBadge');
+                badge.innerText = data.ai_advisory.risk_level || 'Orta';
+                if (data.ai_advisory.risk_level === 'Yüksek') badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 font-bold uppercase';
+                else if (data.ai_advisory.risk_level === 'Düşük') badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 font-bold uppercase';
+                else badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold uppercase';
+
+                // 🎯 [MİMARİ COUTURE]: Rol Tabanlı Dinamik Komuta Merkezi Geçişi
+                if (data.user && data.user.is_staff) {
+                    const navContainer = document.querySelector('nav.flex.flex-col.gap-2');
+                    if (!document.getElementById('adminPanelBtn')) {
+                        navContainer.innerHTML += `
+                            <a href="/admin_panel.html" id="adminPanelBtn" class="nav-link w-full flex items-center gap-4 px-4 py-3.5 hover:bg-amber-500/10 rounded-xl font-medium text-sm text-left transition-all border border-amber-500/30 mt-2">
+                                <i class="fa-solid fa-screwdriver-wrench w-5 text-amber-400"></i><span>Yönetim Paneli</span>
+                            </a>
+                        `;
+                    }
+                }
+
+                // 🎯 [YENİ]: Akıllı Hedef Odaklı Bildirimleri Süzme ve Ön Yüze Parlatma Alanı
+                try {
+                    const notifResp = await authFetch(`${API_BASE}/api/summary/notifications/my/`, { method: 'GET' });
+                    const notifData = await notifResp.json();
+                    const notifWrapper = document.getElementById('userNotificationWrapper');
+                    if (notifData.success && notifData.notifications && notifData.notifications.length > 0) {
+                        notifWrapper.classList.remove('hidden');
+                        const NOTICE_HEADING = 'Kullanıcılarımızın Dikkatine';
+                        notifWrapper.innerHTML = notifData.notifications.map(n => `
+                            <div class="glass-card system-notice-card p-4 text-xs">
+                                <div class="flex items-center gap-2 notice-heading text-[11px] mb-2">
+                                    <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm shrink-0"></i>
+                                    <span>${NOTICE_HEADING}</span>
+                                </div>
+                                <p class="notice-subtitle text-sm mb-1">${n.title}</p>
+                                <p class="notice-body">${n.message}</p>
+                                <div class="flex flex-wrap justify-between gap-1 mt-2 notice-meta font-mono">
+                                    <span><i class="fa-regular fa-clock mr-0.5"></i>${n.date}</span>
+                                    <span><i class="fa-solid fa-hourglass-half mr-0.5"></i>${n.remaining_label || ''}${n.expires_at ? ' · ' + n.expires_at : ''}</span>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        notifWrapper.classList.add('hidden');
+                    }
+                } catch (notifErr) { console.error(notifErr); }
+
+                const uvIndex = data.weather_metrics.uv_index;
+                if (uvIndex === null || uvIndex === undefined) {
+                    document.getElementById('uvText').innerText = 'UV verisi yok';
+                    document.getElementById('uvMarker').style.left = '0%';
+                } else {
+                    const uvLevel = uvIndex < 3 ? 'Düşük' : uvIndex < 6 ? 'Orta' : uvIndex < 8 ? 'Yüksek' : 'Çok Yüksek';
+                    document.getElementById('uvText').innerText = `${uvLevel} (${Number(uvIndex).toFixed(1)})`;
+                    document.getElementById('uvMarker').style.left = `${Math.min((Number(uvIndex) / 11) * 100, 100)}%`;
+                }
+
+                const aqiValue = data.weather_metrics.aqi_value; const aqiStatus = data.weather_metrics.aqi_status;
+                if (aqiValue === null || aqiValue === undefined || !aqiStatus) {
+                    document.getElementById('aqiStatus').innerText = 'AQI verisi yok';
+                    document.getElementById('aqiMarker').style.left = '0%';
+                } else {
+                    document.getElementById('aqiStatus').innerText = `${aqiStatus} (${aqiValue})`;
+                    document.getElementById('aqiMarker').style.left = `${Math.min((Number(aqiValue) / 5) * 100, 100)}%`;
+                }
+
+                renderHourly(data.weather_metrics?.hourly || []);
+                renderWeatherAlerts(data.weather_metrics?.weather_alerts || []);
+                renderForecast(data.forecast || []);
+                renderMoonPhase();
+
+                const currentHour = new Date().getHours();
+                const isDay = currentHour >= 6 && currentHour < 19;
+                const body = document.getElementById('mainBody');
+
+                if (isDay) {
+                    body.className = 'theme-day min-h-screen font-sans transition-all duration-1000 relative';
+                    document.getElementById('dayIllustration').classList.remove('hidden');
+                    document.getElementById('nightIllustration').classList.add('hidden');
+                    document.getElementById('starField').classList.add('hidden');
+                } else {
+                    body.className = 'theme-night min-h-screen font-sans transition-all duration-1000 relative';
+                    document.getElementById('dayIllustration').classList.add('hidden');
+                    document.getElementById('nightIllustration').classList.remove('hidden');
+                    document.getElementById('starField').classList.remove('hidden');
+                    if (typeof generateStars === 'function') generateStars();
+                }
+            } catch (error) {
+                console.error(error); document.getElementById('aiSummaryText').innerText = 'Bağlantı hatası.';
+            } finally {
+                if(wrapper) wrapper.style.opacity = '1';
+                if(sparkle) sparkle.classList.remove('animate-spin');
+            }
+        }
+
+        const HOURLY_ICONS = {
+            sun: 'fa-sun text-amber-300',
+            cloud: 'fa-cloud text-slate-300',
+            'cloud-rain': 'fa-cloud-rain text-sky-400',
+            'cloud-bolt': 'fa-cloud-bolt text-violet-300',
+            snowflake: 'fa-snowflake text-blue-200',
+        };
+
+        function renderHourly(hourly) {
+            const section = document.getElementById('hourlyWeatherSection');
+            const scroll = document.getElementById('hourlyScroll');
+            if (!hourly.length) {
+                section.classList.add('hidden');
+                return;
+            }
+            section.classList.remove('hidden');
+            scroll.innerHTML = hourly.map((h) => {
+                const rainSoon = h.pop_percent >= 55 || (h.main || '').toLowerCase().includes('rain');
+                const iconCls = HOURLY_ICONS[h.icon] || HOURLY_ICONS.cloud;
+                return `
+                    <div class="hourly-item ${rainSoon ? 'rain-soon' : ''}">
+                        <div class="font-mono opacity-80">${h.time}</div>
+                        <i class="fa-solid ${iconCls} text-sm my-0.5 block"></i>
+                        <div class="font-bold">${h.temp}°</div>
+                        <div class="opacity-70 text-[9px]">Yağış %${h.pop_percent}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderWeatherAlerts(alerts) {
+            const banner = document.getElementById('weatherAlertBanner');
+            if (!alerts.length) {
+                banner.classList.add('hidden');
+                return;
+            }
+            const primary = alerts[0];
+            banner.classList.remove('hidden');
+            document.getElementById('weatherAlertTitle').innerText = primary.title || 'Hava uyarısı';
+            document.getElementById('weatherAlertMessage').innerText = primary.message || '';
+        }
+
+        function renderForecast(forecast) {
+            const container = document.getElementById('forecastList');
+            if (!forecast.length) { container.innerHTML = '<div class="opacity-70">Tahmin verisi alınamadı.</div>'; return; }
+            container.innerHTML = forecast.map((item) => {
+                const iconClass = item.icon || 'cloud'; const isToday = item.day === "Bugün";
+                return `
+                    <div class="flex justify-between items-center text-xs py-1 border-b border-white/5 last:border-0 ${isToday ? 'text-amber-200 font-medium' : ''}">
+                        <span class="w-32 flex items-center justify-between pr-2">
+                            <span>${item.day}</span>
+                            <span class="text-[9px] opacity-40 font-normal tracking-wide">${item.day_tr}</span>
+                        </span>
+                        <i class="fa-solid fa-${iconClass} ${isToday ? 'text-amber-300' : 'text-blue-200/60'} w-6 text-center text-sm"></i>
+                        <span class="opacity-80 text-right w-16 font-mono">${item.min ?? '--'}° / ${item.max ?? '--'}°</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderMoonPhase() {
+            const now = new Date(); const lp = 2551443; const newMoon = new Date('1970-01-07T20:35:00Z').getTime() / 1000;
+            const phase = (((now.getTime() / 1000) - newMoon) % lp) / lp; const age = Math.floor(phase * 29.53);
+            let phaseText = 'Yeni Ay';
+            if (phase < 0.03 || phase > 0.97) phaseText = 'Yeni Ay';
+            else if (phase < 0.22) phaseText = 'Hilal';
+            else if (phase < 0.28) phaseText = 'İlk Dördün';
+            else if (phase < 0.47) phaseText = 'Şişkin Ay';
+            else if (phase < 0.53) phaseText = 'Dolunay';
+            else if (phase < 0.72) phaseText = 'Küçülen Şişkin Ay';
+            else if (phase < 0.78) phaseText = 'Son Dördün';
+            else phaseText = 'Küçülen Hilal';
+            document.getElementById('moonAgeText').innerText = `Ay yaşı: ${age} gün`;
+            document.getElementById('moonPhaseText').innerText = phaseText;
+        }
+
+        function generateStars() {
+            const field = document.getElementById('starField'); field.innerHTML = '';
+            for(let i=0; i<40; i++) {
+                let star = document.createElement('div'); star.className = 'star';
+                star.style.left = Math.random() * 100 + 'vw'; star.style.top = Math.random() * 40 + 'vh';
+                star.style.width = star.style.height = Math.random() * 2.5 + 'px';
+                star.style.animationDelay = Math.random() * 2 + 's'; field.appendChild(star);
+            }
+        }
+
+        function init3DGlobe() {
+            const container = document.getElementById('globe-container'); container.innerHTML = '';
+            const width = 160; const height = 160; const sensitivity = 0.25;
+            const projection = d3.geoOrthographic().scale(75).center([0, 0]).translate([width / 2, height / 2]);
+            const path = d3.geoPath().projection(projection);
+            const svg = d3.select("#globe-container").append("svg").attr("width", width).attr("height", height);
+
+            svg.append("circle").attr("cx", width / 2).attr("cy", height / 2).attr("r", projection.scale()).style("fill", "rgba(255, 255, 255, 0.03)").style("stroke", "rgba(255, 255, 255, 0.1)");
+            d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(data => {
+                const countries = topojson.feature(data, data.objects.countries); const map = svg.append("g");
+                map.selectAll(".country").data(countries.features).enter().append("path").attr("class", "country").attr("d", path).style("fill", "rgba(255, 255, 255, 0.15)").style("stroke", "rgba(15, 23, 42, 0.2)").style("stroke-width", "0.5px");
+                svg.call(d3.drag().on("drag", (event) => {
+                    const rotate = projection.rotate(); projection.rotate([rotate[0] + event.dx * sensitivity, rotate[1] - event.dy * sensitivity]); svg.selectAll("path").attr("d", path);
+                }));
+                svg.on("click", (event) => {
+                    const xy = d3.pointer(event); const coords = projection.invert(xy);
+                    if (coords && !isNaN(coords[0]) && !isNaN(coords[1])) {
+                        fetchDashboardData(`?lat=${coords[1].toFixed(4)}&lon=${coords[0].toFixed(4)}`);
+                    }
+                });
+                d3.timer(() => { const rotate = projection.rotate(); projection.rotate([rotate[0] + 0.15, rotate[1]]); svg.selectAll("path").attr("d", path); });
+            });
+        }
+        window.onload = loadDashboard;
+    </script>
+
+    <script>
+        const chatWidget = document.getElementById("chat-widget");
+        const chatTrigger = document.getElementById("chat-trigger");
+        const messagesContainer = document.getElementById("chat-messages-container");
+        const chatInput = document.getElementById("chat-input");
+        const menuAiChatBtn = document.getElementById("menu-ai-chat");
+
+        function openChat() {
+            chatWidget.classList.remove("hidden"); chatTrigger.classList.add("hidden");
+            const welcomeBox = document.getElementById("welcome-message-text");
+            if (welcomeBox && currentProfile) {
+                welcomeBox.innerHTML = `Merhaba ${currentProfile.first_name || currentProfile.username || "Kullanıcı"}! Ben senin kişisel hava ve aktivite asistanınım. Bugün sana nasıl yardımcı olabilirim? 🥊`;
+            }
+            setTimeout(() => { chatWidget.classList.remove("translate-y-4", "opacity-0"); }, 50);
+            scrollToBottom(); loadChatHistory();
+        }
+
+        function closeChat() {
+            chatWidget.classList.add("translate-y-4", "opacity-0");
+            setTimeout(() => { chatWidget.classList.add("hidden"); chatTrigger.classList.remove("hidden"); }, 300);
+        }
+
+        if(menuAiChatBtn) { menuAiChatBtn.addEventListener("click", function(e) { e.preventDefault(); closeNavMenu(); openChat(); }); }
+        function scrollToBottom() { messagesContainer.scrollTop = messagesContainer.scrollHeight; }
+
+        function appendMessage(text, isUser = false) {
+            const msgDiv = document.createElement("div"); msgDiv.className = `flex gap-2 max-w-[85%] ${isUser ? 'ml-auto justify-end' : ''}`;
+            const innerDiv = document.createElement("div");
+            innerDiv.className = isUser ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-2xl rounded-tr-none shadow-md" : "bg-white/5 text-slate-200 p-3 rounded-2xl rounded-tl-none border border-white/5";
+            innerDiv.innerHTML = text.replace(/\n/g, '<br>'); msgDiv.appendChild(innerDiv); messagesContainer.appendChild(msgDiv); scrollToBottom();
+        }
+
+        async function loadChatHistory() {
+            try {
+                const firstChild = messagesContainer.firstElementChild; messagesContainer.innerHTML = ''; if (firstChild) messagesContainer.appendChild(firstChild);
+                const response = await authFetch(`${API_BASE}/api/chat/history/`, { method: 'GET' });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.history) {
+                        data.history.forEach(msg => { appendMessage(msg.user_message, true); appendMessage(msg.ai_response, false); });
+                    }
+                }
+            } catch (error) { console.error(error); }
+        }
+
+        async function sendChatMessage() {
+            const messageText = chatInput.value.trim(); if (!messageText) return;
+            appendMessage(messageText, true); chatInput.value = "";
+            const typingDiv = document.createElement("div"); typingDiv.className = "flex gap-2 max-w-[85%]";
+            typingDiv.innerHTML = `<div class="bg-white/5 text-slate-400 p-3 rounded-2xl rounded-tl-none border border-white/5 animate-pulse">Asistan düşünüyor...</div>`;
+            messagesContainer.appendChild(typingDiv); scrollToBottom();
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/chat/send/`, { method: "POST", body: JSON.stringify({ message: messageText }) });
+                typingDiv.remove();
+                if (response.ok) { const data = await response.json(); if (data.success) appendMessage(data.response, false); }
+                else { appendMessage("Sunucu hatası!", false); }
+            } catch (error) { if(typingDiv) typingDiv.remove(); appendMessage("Bağlantı hatası!", false); }
+        }
+    </script>
+</body>
+</html>

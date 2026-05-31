@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hava & Sağlık AI | Yönetim Paneli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background: linear-gradient(to bottom, #0b1026 0%, #1a2a6c 100%); color: #f8fafc; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 1.25rem;
+        }
+        .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 99px; }
+        .active-menu { background: rgba(59, 130, 246, 0.2); border-left: 4px solid #3b82f6; color: #fff; }
+    </style>
+</head>
+<body class="min-h-screen font-sans overflow-x-hidden relative flex flex-col md:flex-row">
+
+    <aside class="w-full md:w-64 bg-slate-950/80 backdrop-blur-2xl border-r border-white/10 p-5 flex flex-col justify-between md:h-screen md:sticky md:top-0 z-40">
+        <div class="space-y-6">
+            <div class="flex items-center gap-2.5 border-b border-white/10 pb-4">
+                <i class="fa-solid fa-cloud-sun-rain text-sky-400 text-lg"></i>
+                <div class="flex flex-col">
+                    <span class="font-bold text-sm tracking-wide text-white">Yönetim Paneli</span>
+                    <span class="text-[9px] text-slate-400 uppercase tracking-widest">Hava & Sağlık AI</span>
+                </div>
+            </div>
+
+            <nav class="flex flex-col gap-1 text-xs font-medium text-slate-400">
+                <button onclick="switchTab('executive-dashboard')" id="menu-executive-dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left active-menu focus:outline-none">
+                    <i class="fa-solid fa-gauge-high w-4"></i><span>Genel Bakış</span>
+                </button>
+                <button onclick="switchTab('user-intelligence')" id="menu-user-intelligence" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left hover:bg-white/5 focus:outline-none">
+                    <i class="fa-solid fa-users w-4"></i><span>Kullanıcılar</span>
+                </button>
+                <button onclick="switchTab('ai-ops')" id="menu-ai-ops" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left hover:bg-white/5 text-amber-300 focus:outline-none">
+                    <i class="fa-solid fa-list-check w-4"></i><span>Sistem Kayıtları</span>
+                </button>
+                <button onclick="switchTab('notification-center')" id="menu-notification-center" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left hover:bg-white/5 focus:outline-none">
+                    <i class="fa-solid fa-bullhorn w-4"></i><span>Bildirimler</span>
+                </button>
+                <button onclick="switchTab('analytics-product')" id="menu-analytics-product" class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left hover:bg-white/5 text-indigo-300 focus:outline-none">
+                    <i class="fa-solid fa-chart-line w-4"></i><span>Ürün Analizi</span>
+                </button>
+            </nav>
+        </div>
+
+        <div class="border-t border-white/10 pt-4 mt-4">
+            <a href="/dashboard.html" class="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl text-xs transition-all">
+                <i class="fa-solid fa-arrow-left"></i><span>Ana Sayfaya Dön</span>
+            </a>
+        </div>
+    </aside>
+
+    <main class="flex-1 p-5 md:p-8 space-y-6 max-w-5xl mx-auto w-full overflow-y-auto">
+        
+        <header class="glass-card p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-xs">
+            <div class="flex flex-wrap items-center gap-3">
+                <div id="statusApi" class="flex items-center gap-1.5 bg-slate-500/10 border border-white/10 px-2.5 py-1 rounded-lg text-slate-400 font-medium">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>Veriler yükleniyor…
+                </div>
+            </div>
+            <div class="flex items-center gap-4 font-mono text-[11px]">
+                <div class="text-right">
+                    <span class="opacity-50 block text-[9px] font-sans">TOPLAM SİSTEM KAYDI</span>
+                    <span id="headerTotalLogs" class="text-amber-400 font-bold">—</span>
+                </div>
+                <div class="text-right">
+                    <span class="opacity-50 block text-[9px] font-sans">GÜNLÜK AI ÖZETİ</span>
+                    <span id="headerAiToday" class="text-sky-400 font-bold">—</span>
+                </div>
+            </div>
+        </header>
+
+        <div id="loadError" class="hidden glass-card p-4 border border-red-500/30 text-red-300 text-sm text-left">
+            <i class="fa-solid fa-triangle-exclamation mr-2"></i>
+            <span id="loadErrorText">Veriler yüklenemedi.</span>
+        </div>
+
+        <!-- Genel Bakış -->
+        <section id="tab-executive-dashboard" class="tab-content space-y-6">
+            <p class="text-[11px] text-slate-400 text-left">Kayıtlı kullanıcılar, günlük aktivite ve AI özet üretimine ait canlı özetler veritabanından okunur.</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="p-4 rounded-2xl border border-white/10 text-left" style="background-color: #262f59;">
+                    <span class="text-[9px] uppercase tracking-wider text-white/60 font-bold block">Toplam Kullanıcı</span>
+                    <span class="text-[9px] text-white/40 block mb-1">Sisteme kayıtlı hesap sayısı</span>
+                    <span id="exec-total-users" class="text-2xl font-black mt-1 block">—</span>
+                </div>
+                <div class="p-4 rounded-2xl border border-white/10 text-left" style="background-color: #262f59;">
+                    <span class="text-[9px] uppercase tracking-wider text-white/60 font-bold block">Son 24 Saatte Aktif</span>
+                    <span class="text-[9px] text-white/40 block mb-1">Giriş yapan kullanıcılar</span>
+                    <span id="exec-active-users" class="text-2xl font-black mt-1 text-emerald-400 block">—</span>
+                </div>
+                <div class="p-4 rounded-2xl border border-white/10 text-left" style="background-color: #262f59;">
+                    <span class="text-[9px] uppercase tracking-wider text-white/60 font-bold block">Bugünkü AI Özeti</span>
+                    <span class="text-[9px] text-white/40 block mb-1">Üretilen günlük rapor / tetikleme</span>
+                    <span id="exec-ai-generations" class="text-2xl font-black mt-1 text-blue-400 block">—</span>
+                </div>
+                <div class="p-4 rounded-2xl border border-white/10 text-left" style="background-color: #262f59;">
+                    <span class="text-[9px] uppercase tracking-wider text-white/60 font-bold block">Yedek AI Çağrısı</span>
+                    <span class="text-[9px] text-white/40 block mb-1">Ana servis dışı fallback (24s)</span>
+                    <span id="exec-fallback-count" class="text-2xl font-black mt-1 text-red-400 block">—</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-card p-4">
+                    <h4 class="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-1 text-left">Son 7 Gün Trendi</h4>
+                    <p class="text-[10px] text-slate-500 mb-3 text-left">Yeni kayıtlar ve AI özet tetiklemeleri (günlük)</p>
+                    <canvas id="userTrendChart" height="140"></canvas>
+                </div>
+                <div class="glass-card p-4">
+                    <h4 class="text-[11px] font-bold uppercase tracking-wider opacity-60 mb-1 text-left">Risk Dağılımı</h4>
+                    <p class="text-[10px] text-slate-500 mb-3 text-left">Tüm günlük özetlerdeki risk seviyeleri</p>
+                    <canvas id="riskDistributionChart" height="140"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Kullanıcılar -->
+        <section id="tab-user-intelligence" class="tab-content space-y-4 hidden">
+            <div class="glass-card p-4">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-blue-300 border-b border-white/5 pb-2 mb-1 text-left">Kayıtlı Kullanıcılar</h3>
+                <p class="text-[10px] text-slate-500 mb-3 text-left">Profil, son görüntülenen şehir (günlük özet), sağlık hassasiyetleri ve aktiviteler.</p>
+                <div id="usersDetailContainer" class="space-y-3 max-h-[500px] overflow-y-auto custom-scroll pr-1">
+                    <div class="opacity-40 text-center py-5 text-xs">Yükleniyor…</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sistem Kayıtları -->
+        <section id="tab-ai-ops" class="tab-content space-y-6 hidden">
+            <div class="glass-card p-5 space-y-4">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-amber-300 border-b border-white/5 pb-2 text-left">Sistem İşlem Günlüğü</h3>
+                <p class="text-[10px] text-slate-500 text-left">Kullanıcıların tetiklediği AI özet, hava inceleme ve bildirim işlemleri (son 100 kayıt).</p>
+                <div id="aiOutputsContainer" class="space-y-3 max-h-[450px] overflow-y-auto custom-scroll pr-1 text-xs">
+                    <div class="opacity-40 text-center py-5">Yükleniyor…</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bildirimler -->
+        <section id="tab-notification-center" class="tab-content space-y-6 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                <div class="glass-card p-4 md:col-span-1 space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-red-400 border-b border-white/5 pb-1 text-left">Hedefli Uyarı Gönder</h4>
+                    <p class="text-[10px] text-slate-500 text-left">Seçilen kitleye dashboard üzerinden bildirim düşer.</p>
+                    <form id="realNotificationForm" onsubmit="sendTargetedNotification(event)" class="space-y-3 text-xs text-left">
+                        <div class="space-y-1">
+                            <label class="opacity-60 text-[10px]">Hedef kitle</label>
+                            <select id="alertFilterType" onchange="handleFilterTypeChange(this.value)" class="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-xl focus:outline-none text-white cursor-pointer">
+                                <option value="all">Tüm kullanıcılar</option>
+                                <option value="disease">Sağlık hassasiyetine göre</option>
+                                <option value="city">Şehre göre (son özet şehri)</option>
+                                <option value="user">Tek kullanıcı (e-posta)</option>
+                            </select>
+                        </div>
+                        
+                        <div id="filterValueWrapper" class="space-y-1 hidden">
+                            <label id="filterValueLabel" class="opacity-60 text-[10px]">Hedef değer</label>
+                            <select id="alertFilterValue" class="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-xl focus:outline-none text-white cursor-pointer"></select>
+                        </div>
+                        
+                        <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-200/90 text-left">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                            Kullanıcılar bildirimi <strong>「Kullanıcılarımızın Dikkatine」</strong> başlığı altında görür (sağlık, uygulama vb. tüm duyurular).
+                        </div>
+                        <div class="space-y-1">
+                            <label class="opacity-60 text-[10px]">Konu (alt başlık)</label>
+                            <input type="text" id="alertTitle" required placeholder="Örn: Planlı bakım, polen uyarısı" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none text-white placeholder-white/30">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="opacity-60 text-[10px]">Uyarı metni</label>
+                            <textarea id="alertMessage" rows="4" required placeholder="Duyurunun ayrıntılı açıklaması…" class="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-xl focus:outline-none text-white custom-scroll placeholder-white/30"></textarea>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="opacity-60 text-[10px]">Yayında kalma süresi</label>
+                            <select id="alertDurationHours" class="w-full px-3 py-2 bg-slate-900 border border-white/10 rounded-xl focus:outline-none text-white cursor-pointer">
+                                <option value="6">6 saat</option>
+                                <option value="12">12 saat</option>
+                                <option value="24" selected>24 saat (1 gün)</option>
+                                <option value="72">3 gün</option>
+                                <option value="168">7 gün</option>
+                                <option value="720">30 gün</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white font-bold rounded-xl transition-all shadow-md focus:outline-none">Bildirimi Yayınla</button>
+                    </form>
+                </div>
+
+                <div class="glass-card p-4 md:col-span-2 space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300 border-b border-white/5 pb-1 text-left">Yayınlanan Bildirimler</h4>
+                    <p class="text-[10px] text-slate-500 text-left">Veritabanındaki tüm sistem bildirimleri (en yeniden eskiye).</p>
+                    <div id="notificationsLogList" class="space-y-2 max-h-[350px] overflow-y-auto custom-scroll pr-1 text-[11px]">
+                        <div class="opacity-40 text-center py-5">Yükleniyor…</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ürün Analizi -->
+        <section id="tab-analytics-product" class="tab-content space-y-4 hidden">
+            <div class="glass-card p-5 space-y-4">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-indigo-300 border-b border-white/5 pb-2 text-left">Ürün Kullanım Özeti</h3>
+                <p class="text-[10px] text-slate-500 text-left">Sistem logları ve profil aktivitelerinden hesaplanan gerçek metrikler.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-left">
+                    <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                        <span class="opacity-50 block uppercase text-[9px]">En Sık Kayıtlanan İşlem</span>
+                        <span class="text-[9px] text-slate-500 block mb-1">Sistem günlüğündeki en çok tekrar eden aksiyon</span>
+                        <span id="metric-top-feature" class="text-sm font-bold text-slate-200 mt-1 block">—</span>
+                    </div>
+                    <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                        <span class="opacity-50 block uppercase text-[9px]">En Yaygın Aktivite</span>
+                        <span class="text-[9px] text-slate-500 block mb-1">Profillerde en çok işaretlenen aktivite</span>
+                        <span id="metric-top-cohort" class="text-sm font-bold text-blue-300 mt-1 block">—</span>
+                    </div>
+                    <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                        <span class="opacity-50 block uppercase text-[9px]">Toplam Günlük Özet</span>
+                        <span id="metric-total-summaries" class="text-sm font-bold text-emerald-300 mt-1 block">—</span>
+                    </div>
+                    <div class="p-3 bg-white/5 border border-white/5 rounded-xl">
+                        <span class="opacity-50 block uppercase text-[9px]">Aktif Bildirim</span>
+                        <span id="metric-total-notifications" class="text-sm font-bold text-amber-300 mt-1 block">—</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        const API_URL = `${typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:8000'}/api/summary`;
+        
+        let charts = {};
+        let dbFilterData = { diseases: [], cities: [], users: [] };
+        let lastChartData = null;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(section => section.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('active-menu'));
+            document.getElementById(`menu-${tabId}`).classList.add('active-menu');
+            if (tabId === 'executive-dashboard' && lastChartData) {
+                renderCharts(lastChartData);
+            }
+        }
+
+        function setApiStatus(ok, message) {
+            const el = document.getElementById('statusApi');
+            if (ok) {
+                el.className = 'flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg text-emerald-400 font-medium';
+                el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>' + message;
+            } else {
+                el.className = 'flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-lg text-red-300 font-medium';
+                el.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>' + message;
+            }
+        }
+
+        function showLoadError(msg) {
+            document.getElementById('loadError').classList.remove('hidden');
+            document.getElementById('loadErrorText').textContent = msg;
+            setApiStatus(false, 'Veri bağlantısı başarısız');
+        }
+
+        async function fetchUniqueFilterPool() {
+            try {
+                const res = await authFetch(`${API_URL}/notifications/filters/`, { method: 'GET' });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    dbFilterData.diseases = data.diseases || [];
+                    dbFilterData.cities = data.cities || [];
+                    dbFilterData.users = data.users || [];
+                }
+            } catch (err) {
+                console.error('Filtre listesi hatası:', err);
+            }
+        }
+
+        function handleFilterTypeChange(type) {
+            const wrapper = document.getElementById('filterValueWrapper');
+            const label = document.getElementById('filterValueLabel');
+            const valueSelect = document.getElementById('alertFilterValue');
+            
+            if (type === 'all') {
+                wrapper.classList.add('hidden');
+                valueSelect.innerHTML = '';
+                return;
+            }
+            
+            wrapper.classList.remove('hidden');
+            valueSelect.innerHTML = '';
+            
+            if (type === 'disease') {
+                label.innerText = 'Hassasiyet (veritabanından)';
+                if (!dbFilterData.diseases.length) {
+                    valueSelect.innerHTML = '<option value="">Kayıtlı hassasiyet yok</option>';
+                } else {
+                dbFilterData.diseases.forEach(d => {
+                        valueSelect.innerHTML += `<option value="${d}">${d}</option>`;
+                });
+                }
+            } else if (type === 'city') {
+                label.innerText = 'Şehir (günlük özetlerden)';
+                if (!dbFilterData.cities.length) {
+                    valueSelect.innerHTML = '<option value="">Henüz şehir verisi yok</option>';
+                } else {
+                dbFilterData.cities.forEach(c => {
+                    valueSelect.innerHTML += `<option value="${c}">${c}</option>`;
+                });
+                }
+            } else if (type === 'user') {
+                label.innerText = 'Kullanıcı (e-posta)';
+                if (!dbFilterData.users.length) {
+                    valueSelect.innerHTML = '<option value="">Kayıtlı kullanıcı yok</option>';
+                } else {
+                dbFilterData.users.forEach(u => {
+                    valueSelect.innerHTML += `<option value="${u.email}">${u.username} (${u.email})</option>`;
+                });
+                }
+            }
+        }
+
+        async function sendTargetedNotification(e) {
+            e.preventDefault();
+            const filter_type = document.getElementById('alertFilterType').value;
+            const filter_value = filter_type !== 'all' ? document.getElementById('alertFilterValue').value : null;
+            const title = document.getElementById('alertTitle').value;
+            const message = document.getElementById('alertMessage').value;
+            const duration_hours = parseInt(document.getElementById('alertDurationHours').value, 10);
+
+            if (filter_type !== 'all' && !filter_value) {
+                alert('Lütfen hedef değer seçin veya önce veritabanında ilgili veriyi oluşturun.');
+                return;
+            }
+
+            try {
+                const response = await authFetch(`${API_URL}/notifications/create/`, {
+                    method: 'POST',
+                    body: JSON.stringify({ filter_type, filter_value, title, message, duration_hours })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    alert('Bildirim veritabanına kaydedildi.');
+                    document.getElementById('realNotificationForm').reset();
+                    document.getElementById('filterValueWrapper').classList.add('hidden');
+                    await loadAdminNotifications();
+                    await loadCommandCenterData(); 
+                } else {
+                    alert(data.error || 'Gönderim başarısız.');
+                }
+            } catch (err) {
+                console.error('Bildirim hatası:', err);
+                alert('Sunucuya bağlanılamadı.');
+            }
+        }
+
+        function renderCharts(chartData) {
+            if (!chartData) return;
+            lastChartData = chartData;
+
+            if (charts.userTrend) charts.userTrend.destroy();
+            if (charts.riskDist) charts.riskDist.destroy();
+
+            const ctx1 = document.getElementById('userTrendChart').getContext('2d');
+            charts.userTrend = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels || [],
+                    datasets: [
+                        { label: 'Yeni kayıt', data: chartData.user_trend || [], borderColor: '#3b82f6', tension: 0.4, fill: false },
+                        { label: 'AI özet', data: chartData.ai_trend || [], borderColor: '#f59e0b', tension: 0.4, fill: false }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } }, x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } } },
+                    plugins: { legend: { labels: { color: '#fff' } } }
+                }
+            });
+
+            const ctx2 = document.getElementById('riskDistributionChart').getContext('2d');
+            charts.riskDist = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: chartData.risk_labels || ['Veri yok'],
+                    datasets: [{
+                        data: chartData.risk_counts || [0],
+                        backgroundColor: chartData.risk_colors || ['#94a3b8'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#fff' } } } }
+            });
+        }
+
+        function renderUsers(users) {
+            const box = document.getElementById('usersDetailContainer');
+            if (!users.length) {
+                box.innerHTML = '<div class="opacity-40 text-center py-5 text-xs">Henüz kayıtlı kullanıcı yok.</div>';
+                return;
+            }
+            box.innerHTML = users.map(u => `
+                <div class="bg-white/5 border border-white/5 p-3 rounded-xl text-left space-y-2">
+                    <div class="flex flex-wrap justify-between gap-2">
+                        <div>
+                            <span class="font-bold text-slate-200 text-sm">${escapeHtml(u.username)}</span>
+                            ${u.is_staff ? '<span class="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded ml-1">Yönetici</span>' : ''}
+                            ${u.is_onboarded ? '<span class="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded ml-1">Profil tamam</span>' : '<span class="text-[9px] bg-slate-500/30 text-slate-400 px-1.5 py-0.5 rounded ml-1">Profil eksik</span>'}
+                        </div>
+                        <span class="text-[10px] opacity-40 font-mono">Kayıt: ${escapeHtml(u.date_joined)}</span>
+                    </div>
+                    <p class="text-[11px] opacity-60">${escapeHtml(u.email || 'E-posta yok')}</p>
+                    <p class="text-[10px] text-blue-300"><i class="fa-solid fa-location-dot mr-1"></i>Son şehir: ${escapeHtml(u.city)}</p>
+                    <p class="text-[10px] text-rose-200/90"><i class="fa-solid fa-heart-pulse mr-1"></i>Hassasiyetler: ${escapeHtml(u.diseases)}</p>
+                    <p class="text-[10px] text-red-200/80"><i class="fa-solid fa-droplet mr-1"></i>Kan grubu: ${escapeHtml(u.blood_type)} · İlaçlar: ${escapeHtml(u.medications)}</p>
+                    <p class="text-[10px] text-orange-200/80"><i class="fa-solid fa-seedling mr-1"></i>Alerjiler: ${escapeHtml(u.allergies)}</p>
+                    ${u.health_notes && u.health_notes !== '—' ? `<p class="text-[10px] text-slate-400 italic">Not: ${escapeHtml(u.health_notes)}</p>` : ''}
+                    <p class="text-[10px] text-slate-300"><i class="fa-solid fa-person-running mr-1"></i>Aktiviteler: ${escapeHtml(u.activities)}</p>
+                    <p class="text-[9px] opacity-40">Son giriş: ${escapeHtml(u.last_login)}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderLogs(logs) {
+            const box = document.getElementById('aiOutputsContainer');
+            if (!logs.length) {
+                box.innerHTML = '<div class="opacity-40 text-center py-5">Henüz sistem kaydı yok.</div>';
+                return;
+            }
+            box.innerHTML = logs.map(l => `
+                <div class="bg-slate-950/60 border border-white/5 p-3 rounded-xl space-y-1 text-left">
+                    <div class="flex justify-between items-center border-b border-white/5 pb-1 gap-2">
+                        <span class="text-blue-300 font-bold text-[11px]"><i class="fa-regular fa-user mr-1"></i>${escapeHtml(l.username)}</span>
+                        <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-bold text-[9px] shrink-0">${escapeHtml(l.action)}</span>
+                    </div>
+                    <p class="text-slate-300 font-light text-[11px] leading-relaxed">${escapeHtml(l.details)}</p>
+                    <span class="text-[9px] opacity-40 block text-right">${escapeHtml(l.date)}</span>
+                </div>
+            `).join('');
+        }
+
+        async function deleteNotification(id) {
+            if (!confirm('Bu bildirimi kalıcı olarak silmek istediğinize emin misiniz?')) return;
+            try {
+                const res = await authFetch(`${API_URL}/notifications/${id}/delete/`, { method: 'DELETE' });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    await loadAdminNotifications();
+                    await loadCommandCenterData();
+                } else {
+                    alert(data.error || 'Silinemedi.');
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Bağlantı hatası.');
+            }
+        }
+
+        async function loadAdminNotifications() {
+            const logBox = document.getElementById('notificationsLogList');
+            try {
+                const res = await authFetch(`${API_URL}/notifications/all/`, { method: 'GET' });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    logBox.innerHTML = '<div class="opacity-40 text-center py-5 text-red-300/80">Bildirim listesi alınamadı.</div>';
+                    return;
+                }
+                if (!data.notifications.length) {
+                    logBox.innerHTML = '<div class="opacity-40 text-center py-5">Yayınlanmış bildirim yok.</div>';
+                    return;
+                }
+                logBox.innerHTML = data.notifications.map(n => `
+                    <div class="p-2.5 bg-slate-950/50 border border-white/5 rounded-xl text-left mb-2 ${n.is_expired ? 'opacity-50' : ''}">
+                        <div class="flex flex-wrap gap-2 items-center mb-1">
+                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300"><i class="fa-solid fa-triangle-exclamation mr-0.5"></i>${escapeHtml(n.heading || 'Kullanıcılarımızın Dikkatine')}</span>
+                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-500/30 text-slate-300">${escapeHtml(n.type_label)}</span>
+                            ${n.filter_value && n.filter_value !== '—' ? `<span class="text-[9px] text-slate-400">Hedef: ${escapeHtml(n.filter_value)}</span>` : ''}
+                            ${n.is_active ? '' : '<span class="text-[9px] text-slate-500">(süresi doldu / pasif)</span>'}
+                        </div>
+                        <span class="text-slate-200 font-semibold block">${escapeHtml(n.title)}</span>
+                        <p class="text-slate-400 mt-0.5">"${escapeHtml(n.message)}"</p>
+                        <span class="opacity-40 block text-[9px] mt-1">Yayın: ${escapeHtml(n.date)} · Bitiş: ${escapeHtml(n.expires_at)} · ${escapeHtml(n.remaining_label || '')}</span>
+                        <button type="button" onclick="deleteNotification(${n.id})" class="mt-2 w-full py-1.5 text-[10px] font-bold rounded-lg bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-600/35 transition-all focus:outline-none">
+                            <i class="fa-solid fa-trash-can mr-1"></i>Bildirimi Sil
+                        </button>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+                logBox.innerHTML = '<div class="opacity-40 text-center py-5 text-red-300/80">Bağlantı hatası.</div>';
+            }
+        }
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        async function loadCommandCenterData() {
+            if (typeof isLoggedIn !== 'undefined' && !isLoggedIn()) {
+                window.location.href = '/login.html';
+                return;
+            }
+
+            await fetchUniqueFilterPool();
+
+            try {
+                const response = await authFetch(`${API_URL}/admin-stats/`, { method: 'GET' });
+
+                if (response.status === 403) {
+                    alert('Bu sayfaya yalnızca yönetici hesapları erişebilir.');
+                    window.location.href = '/dashboard.html';
+                    return;
+                }
+
+                const rawText = await response.text();
+                let data;
+                try {
+                    data = rawText ? JSON.parse(rawText) : {};
+                } catch (_) {
+                    showLoadError(
+                        `Sunucu JSON döndürmedi (HTTP ${response.status}). ` +
+                        'Backend\'i başlatın: python manage.py runserver — ardından: python manage.py migrate'
+                    );
+                    return;
+                }
+
+                if (!response.ok || !data.success) {
+                    const hint = data.detail ? ` (${data.detail})` : '';
+                    showLoadError((data.error || data.detail || `HTTP ${response.status}`) + hint);
+                    return;
+                }
+
+                document.getElementById('loadError').classList.add('hidden');
+                setApiStatus(true, 'Veriler güncel (veritabanı)');
+
+                const m = data.metrics;
+                document.getElementById('exec-total-users').innerText = m.total_users ?? 0;
+                document.getElementById('exec-active-users').innerText = m.active_today ?? 0;
+                document.getElementById('exec-ai-generations').innerText = m.ai_generations_today ?? 0;
+                document.getElementById('exec-fallback-count').innerText = m.fallback_count_today ?? 0;
+                document.getElementById('headerTotalLogs').innerText = `${m.total_logs ?? 0} kayıt`;
+                document.getElementById('headerAiToday').innerText = `${m.ai_generations_today ?? 0} özet`;
+
+                document.getElementById('metric-total-summaries').innerText = `${m.total_summaries ?? 0} adet`;
+                document.getElementById('metric-total-notifications').innerText = `${m.total_notifications ?? 0} adet`;
+
+                if (data.product) {
+                    document.getElementById('metric-top-feature').innerText = data.product.top_feature || '—';
+                    document.getElementById('metric-top-cohort').innerText = data.product.top_cohort || '—';
+                }
+
+                renderUsers(data.users || []);
+                renderLogs(data.logs || []);
+
+                if (data.charts) {
+                    renderCharts(data.charts);
+                }
+
+                await loadAdminNotifications();
+            } catch (error) {
+                console.error('Yönetim paneli veri hatası:', error);
+                showLoadError('Sunucuya ulaşılamıyor. Django API (port 8000) açık mı?');
+            }
+        }
+
+        window.onload = loadCommandCenterData;
+    </script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather AI | Geçmiş Raporlar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/theme.css?v=3">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 99px; }
+    </style>
+</head>
+<body id="mainBody" class="min-h-screen font-sans transition-all duration-1000 overflow-x-hidden relative">
+
+    <div class="max-w-md mx-auto p-5 min-h-screen flex flex-col gap-4">
+        
+        <div class="flex items-center justify-between pt-2">
+            <a href="/dashboard.html" class="flex items-center justify-center w-10 h-10 rounded-full bg-white/10 border border-white/10 hover:bg-white/20 transition-all focus:outline-none">
+                <i class="fa-solid fa-arrow-left text-sm"></i>
+            </a>
+            <h1 class="text-base font-bold tracking-wide flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
+                <span>Geçmiş Raporlarım</span>
+            </h1>
+            <div class="w-10 h-10"></div> </div>
+
+        <div class="glass-card p-3 flex items-center gap-2">
+            <i class="fa-solid fa-magnifying-glass opacity-50 text-xs ml-1"></i>
+            <input type="text" id="historySearch" oninput="filterHistories(this.value)" placeholder="Şehir veya kelime ara..." class="w-full bg-transparent text-xs focus:outline-none placeholder-white/40 text-white">
+        </div>
+
+        <div id="historyContainer" class="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1">
+            <div class="opacity-60 text-center py-10 text-xs">
+                <i class="fa-solid fa-spinner animate-spin text-lg mb-2 block text-blue-300"></i>
+                Rapor arşivi yükleniyor...
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/js/auth.js"></script>
+    <script>
+        let allHistories = [];
+
+        async function loadHistoryPage() {
+            if (!isLoggedIn()) { redirectToLogin(); return; }
+            
+            // Temayı saate göre ayarla (Dashboard ile tam senkronizasyon)
+            const currentHour = new Date().getHours();
+            const isDay = currentHour >= 6 && currentHour < 19;
+            document.getElementById('mainBody').className = isDay ? 'theme-day min-h-screen font-sans relative' : 'theme-night min-h-screen font-sans relative';
+
+            try {
+                const response = await authFetch(`${API_BASE}/api/summary/history/`, { method: 'GET' });
+                if (response.status === 401) { redirectToLogin(); return; }
+                
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    allHistories = data.history;
+                    renderHistories(allHistories);
+                } else {
+                    document.getElementById('historyContainer').innerHTML = `<div class="opacity-50 text-center py-10 text-xs text-red-300">Arşiv yüklenirken bir hata oluştu.</div>`;
+                }
+            } catch (error) {
+                console.error(error);
+                document.getElementById('historyContainer').innerHTML = `<div class="opacity-50 text-center py-10 text-xs text-red-300">Bağlantı hatası.</div>`;
+            }
+        }
+
+        function renderHistories(list) {
+            const container = document.getElementById('historyContainer');
+            if (!list || list.length === 0) {
+                container.innerHTML = `<div class="opacity-40 text-center py-10 text-xs"><i class="fa-solid fa-box-open text-lg mb-2 block"></i>Kayıtlı geçmiş rapor bulunmuyor.</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(item => {
+                let badgeClass = 'bg-amber-500/20 text-amber-300';
+                if (item.risk_level === 'Yüksek') badgeClass = 'bg-red-500/20 text-red-300';
+                else if (item.risk_level === 'Düşük') badgeClass = 'bg-green-500/20 text-green-300';
+
+                return `
+                    <div class="glass-card p-5 border-l-4 border-blue-400 shadow-lg flex flex-col gap-2.5 transition-all hover:scale-[1.01]">
+                        <div class="flex justify-between items-center border-b border-white/5 pb-2 text-[11px] font-semibold tracking-wide">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-map-location-dot opacity-70"></i>
+                                <span>${item.city} • ${item.temp}°C (${item.weather_type})</span>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full uppercase text-[9px] font-bold ${badgeClass}">${item.risk_level}</span>
+                        </div>
+                        <p class="text-xs leading-relaxed font-light text-slate-100/90">${item.summary}</p>
+                        <div class="text-[9px] opacity-40 text-right font-mono tracking-wider">
+                            <i class="fa-regular fa-clock mr-0.5"></i> ${item.date} ${item.time}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterHistories(keyword) {
+            const cleanKeyword = keyword.toLowerCase().trim();
+            if (!cleanKeyword) {
+                renderHistories(allHistories);
+                return;
+            }
+            const filtered = allHistories.filter(item => 
+                item.city.toLowerCase().includes(cleanKeyword) || 
+                item.summary.toLowerCase().includes(cleanKeyword) ||
+                item.weather_type.toLowerCase().includes(cleanKeyword)
+            );
+            renderHistories(filtered);
+        }
+
+        window.onload = loadHistoryPage;
+    </script>
+</body>
+</html>

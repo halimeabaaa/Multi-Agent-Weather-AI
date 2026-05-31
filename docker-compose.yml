@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  # 1. CORE BACKEND (Django)
+  django:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=1
+      - DB_HOST=mysql
+      - DB_NAME=weather_ai
+      - DB_USER=root
+      - DB_PASSWORD=root_pass
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - weather_network
+
+  # 2. VERİTABANI (MySQL)
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_DATABASE: weather_ai
+      MYSQL_ROOT_PASSWORD: root_pass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - weather_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_pass"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. AI MİKROSERVİSİ (FastAPI)
+  fastapi:
+    build:
+      context: ./ai_service
+      dockerfile: Dockerfile
+    command: uvicorn main:app --host 0.0.0.0 --port 8005
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./ai_service:/app
+    env_file:
+      - ./backend/.env
+    environment:
+      - WEAVIATE_HOST=weaviate
+    depends_on:
+      - weaviate
+    networks:
+      - weather_network
+
+  # 4. VEKTÖR VERİTABANI (Weaviate)
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.29.2
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --scheme
+      - http
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      CLUSTER_HOSTNAME: "node1"
+      CLUSTER_GOSSIP_BIND_PORT: "7000"
+      CLUSTER_DATA_BIND_PORT: "7001"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - weather_network
+
+  # 5. ASENKRON GÖREVLENDİRİCİ (Redis)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    networks:
+      - weather_network
+
+  # 6. CELERY WORKER (Arka Plandaki İşçi)
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: sh -c "celery -A config worker --loglevel=info"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=mysql
+      - DB_NAME=weather_ai
+      - DB_USER=root
+      - DB_PASSWORD=root_pass
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - weather_network
+
+  # 7. CELERY BEAT (Zamanlayıcı - Saat)
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: sh -c "celery -A config beat --loglevel=info"
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=mysql
+      - DB_NAME=weather_ai
+      - DB_USER=root
+      - DB_PASSWORD=root_pass
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - weather_network
+
+  # 8. FRONTEND SERVISI (Nginx ile HTML Sayfalarını Sunar)
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    networks:
+      - weather_network
+
+volumes:
+  mysql_data:
+  weaviate_data:
+
+networks:
+  weather_network:
+    driver: bridge
